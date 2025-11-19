@@ -1,15 +1,22 @@
 <template>
-    <div class="drop-zone" ondragover={handleDragOver} ondrop={handleDrop}>
+    <div 
+        class="drop-zone"
+        ondragover={handleDragOver}
+        ondragenter={handleDragEnter}
+        ondragleave={handleDragLeave}
+        ondrop={handleDrop}
+    >
+
         <template if:false={loading}>
             <div class="drop-zone-content">
                 <lightning-icon icon-name="utility:email" size="large"></lightning-icon>
                 <p>Drag & Drop an email (.msg)</p>
             </div>
         </template>
- 
+
         <template if:true={loading}>
             <lightning-spinner size="medium" alternative-text="Processing email..."></lightning-spinner>
         </template>
+
     </div>
 </template>
-
