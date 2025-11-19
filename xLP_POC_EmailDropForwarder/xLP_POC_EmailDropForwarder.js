@@ -3,12 +3,12 @@ import { loadScript } from 'lightning/platformResourceLoader';
 import msgReaderLib from '@salesforce/resourceUrl/msgreader_lib_17_11_25';
 import forwardParsedEmail from '@salesforce/apex/XLP_POC_EmailForwardController.forwardParsedEmail';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
- 
+
 export default class xLP_POC_EmailDropForwarder extends LightningElement {
-    @api recordId; // Opportunity Id
+    @api recordId; 
     @track loading = false;
     msgLibLoaded = false;
- 
+
     connectedCallback() {
         if (!this.msgLibLoaded) {
             Promise.all([
@@ -22,76 +22,111 @@ export default class xLP_POC_EmailDropForwarder extends LightningElement {
             })
             .catch(err => {
                 console.error('ERROR loading static resource', err);
+
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Error loading email parser',
+                        message: err.message,
+                        variant: 'error'
+                    })
+                );
             });
         }
     }
- 
+
+    handleDragEnter() {
+        this.template.querySelector('.drop-zone').classList.add('drag-over');
+    }
+
+    handleDragLeave() {
+        this.template.querySelector('.drop-zone').classList.remove('drag-over');
+    }
+
     handleDragOver(event) {
         event.preventDefault();
     }
- 
+
     async handleDrop(event) {
         event.preventDefault();
+        this.template.querySelector('.drop-zone').classList.remove('drag-over');
         this.loading = true;
- 
+
         try {
             const file = event.dataTransfer.files[0];
+
+            // (Optional) Reject non-.msg files
+            if (!file.name.toLowerCase().endsWith('.msg')) {
+                this.loading = false;
+                this.dispatchEvent(
+                    new ShowToastEvent({
+                        title: 'Invalid File',
+                        message: 'Please drop a valid .msg email file.',
+                        variant: 'warning'
+                    })
+                );
+                return;
+            }
+
             const arrayBuffer = await file.arrayBuffer();
- 
-            console.log('Processing .msg size:', arrayBuffer.byteLength);
- 
-            // Create reader
+
             const reader = new MSGReader(arrayBuffer);
             const msgData = reader.getFileData();
- 
-            // Extract body (HTML preferred)
+
             const body =
-                //msgData.bodyHTML ||
                 msgData.body ||
                 '(No body)';
- 
-            // Extract attachments
+
             const attachments = [];
- 
+
             if (msgData.attachments && msgData.attachments.length > 0) {
                 for (let attMeta of msgData.attachments) {
-                    const fileData = reader.getAttachment(attMeta);  // <--- real binary
- 
+                    const fileData = reader.getAttachment(attMeta);
+
                     if (fileData && fileData.content) {
-                        // Convert Uint8Array → Base64
                         const uint8 = fileData.content;
                         let binary = '';
-                        uint8.forEach(byte => binary += String.fromCharCode(byte));
+                        uint8.forEach(b => (binary += String.fromCharCode(b)));
                         const base64Data = btoa(binary);
- 
+
                         attachments.push({
                             fileName: fileData.fileName,
                             base64: base64Data
                         });
- 
-                        console.log('Attachment processed:', fileData.fileName);
                     }
                 }
             }
- 
-            console.log('Final attachments JSON:', attachments);
- 
-            // Send to Apex
+
+            // Apex call (unchanged)
             await forwardParsedEmail({
                 oppId: this.recordId,
                 subject: msgData.subject || '(No Subject)',
                 body: body,
                 attachmentsJson: JSON.stringify(attachments)
             });
- 
-            console.log('Email forwarded successfully.');
- 
+
+            // ⭐ SUCCESS TOAST ⭐
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Email Processed',
+                    message: `${file.name} was successfully parsed and forwarded.`,
+                    variant: 'success'
+                })
+            );
+
         } catch (err) {
             console.error('Error processing dropped file:', err);
+
+            // ⭐ ERROR TOAST ⭐
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: 'Error Processing Email',
+                    message: err.message,
+                    variant: 'error'
+                })
+            );
+
         } finally {
             this.loading = false;
         }
     }
 }
-
-
