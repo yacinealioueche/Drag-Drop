@@ -1,3 +1,6 @@
 11:26:23:933 EXCEPTION_THROWN [83]|System.DmlException: Insert failed. First exception on row 0; first error: INSUFFICIENT_ACCESS_ON_CROSS_REFERENCE_ENTITY, You do not have the level of access necessary to perform the operation you requested. Please contact the owner of the record or your administrator if access is necessary.: [LinkedEntityId]
 
 � buT
+
+
+We can't save this record because the â€œXLI Opportunity After Saveâ€ process failed. Give your Salesforce admin these details. <b>Limit Exceeded</b><br>You or your organization has exceeded the maximum limit for this feature. Error ID: 1293609984-3002 (-579817576)rganization has exceeded the maximum limit for this feature. Error ID: 1293609984-3002 (-579817576)
