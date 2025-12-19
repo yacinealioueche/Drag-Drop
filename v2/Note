@@ -6,3 +6,13 @@
 We can't save this record because the â€œXLI Opportunity After Saveâ€ process failed. Give your Salesforce admin these details. <b>Limit Exceeded</b><br>You or your organization has exceeded the maximum limit for this feature. Error ID: 1293609984-3002 (-579817576)rganization has exceeded the maximum limit for this feature. Error ID: 1293609984-3002 (-579817576)
 
 Record Type ID: this ID value isn't valid for the user: 012WF0000023MamYAE
+
+
+LEFT(
+IF(ISBLANK({!opportunityRecordInput.XLP_ClientName__r.Name}),
+{!opportunityRecordInput.XLP_ProspectName__c},
+{!opportunityRecordInput.XLP_ClientName__r.Name}),36) & "_" & 
+LEFT(TEXT({!opportunityRecordInput.XLP_Year__c}), 4) & "_" &
+LEFT(TEXT({!opportunityRecordInput.XLP_UnderwritingUnit__c}), 31) & 
+IF(ISPICKVAL({!opportunityRecordInput.XLP_ProducingOffice__c},""),"","_" & LEFT(TEXT({!opportunityRecordInput.XLP_ProducingOffice__c}),15))
+& "_" & LEFT({!opportunityRecordInput.XLP_BrokerName__r.Name},30)
