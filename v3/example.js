@@ -196,3 +196,38 @@ function validateRtf(rtfStr) {
 }
 
 
+
+function validateDecompressedRtf(rtf, rawBytesLength, expectedCbRawSize) {
+    const headerOk = rtf.trim().startsWith("{\\rtf");
+    const fonttblOk = rtf.includes("\\fonttbl");
+    const nullBytes = [...rtf].some(c => c.charCodeAt(0) === 0);
+
+    // TRUNCATION CHECK
+    const sizeOk = rawBytesLength === expectedCbRawSize;
+
+    // STRUCTURE CHECK
+    const balanced = hasBalancedBracesRtfAware(rtf);
+
+    return {
+        isValid:
+            headerOk &&
+            fonttblOk &&
+            balanced &&
+            !nullBytes &&
+            sizeOk,
+
+        details: {
+            headerOk,
+            fonttblOk,
+            balanced,
+            nullBytes,
+            sizeOk,
+            expectedCbRawSize,
+            rawBytesLength
+        }
+    };
+}
+
+
+
+
