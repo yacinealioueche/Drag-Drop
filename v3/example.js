@@ -103,130 +103,38 @@ function validateRtf(rtfStr) {
 
 
 
-function hasBalancedBracesRtfAware(rtf) {
-    let depth = 0;
-    let i = 0;
-    const len = rtf.length;
 
-    while (i < len) {
-        const ch = rtf[i];
+// 1 — extract expected uncompressed size from LZFu header
+function getExpectedCbRawSize(compressed) {
+    const dv = new DataView(
+        compressed.buffer,
+        compressed.byteOffset,
+        compressed.byteLength
+    );
+    return dv.getUint32(4, true); // cbRawSize
+}
 
-        // -----------------------------------------
-        // 1 — Backslash: start of control or escape
-        // -----------------------------------------
-        if (ch === '\\') {
-            i++;
-            if (i >= len) break;
+// 2 — decompress
+const compressed = bytes; // Uint8Array from msgreader
+const expectedCbRawSize = getExpectedCbRawSize(compressed);
+const { rtfString, rtfBytes } = window.DecompressRTF.decompressRTF(compressed);
 
-            const next = rtf[i];
+// 3 — get actual output size
+const rawBytesLength = rtfBytes.length;
 
-            // Hex escape  \'hh
-            if (next === '\'') {
-                i++; 
-                const hex = rtf.slice(i, i + 2);
-                if (/^[0-9A-Fa-f]{2}$/.test(hex)) i += 2;
-                continue;
-            }
+// 4 — compare
+console.log({
+    expectedCbRawSize,
+    rawBytesLength
+});
 
-            // Control word  \b \fs20 \u1234
-            if (/[A-Za-z]/.test(next)) {
-                i++;
-                while (i < len && /[A-Za-z]/.test(rtf[i])) i++;
-                while (i < len && /[-0-9]/.test(rtf[i])) i++;
-                if (rtf[i] === ' ') i++;
-                continue;
-            }
-
-            // Control symbol or escaped single char  \{  \}  \~  \-
-            // IMPORTANT: Do not treat \{ or \} as structure!
-            i++;
-            continue;
-        }
-
-        // -----------------------------------------
-        // 2 — Structural braces
-        // -----------------------------------------
-        if (ch === '{') {
-            depth++;
-            i++;
-            continue;
-        }
-        if (ch === '}') {
-            depth--;
-            if (depth < 0) return false;
-            i++;
-            continue;
-        }
-
-        // -----------------------------------------
-        // 3 — Normal text
-        // -----------------------------------------
-        i++;
-    }
-
-    return depth === 0;
+if (rawBytesLength !== expectedCbRawSize) {
+    console.error("❌ Decompression incomplete — RTF is truncated.");
+} else {
+    console.log("✅ Decompression size OK — RTF is complete.");
 }
 
 
-
-function validateRtf(rtfStr) {
-    const hasHeader = rtfStr.trim().startsWith("{\\rtf");
-    const hasFontTable = rtfStr.includes("\\fonttbl");
-
-    // Null bytes = corruption from decompression or wrong decode
-    const hasNulls = [...rtfStr].some(c => c.charCodeAt(0) === 0);
-
-    const balanced = hasBalancedBracesRtfAware(rtfStr);
-
-    const isValid =
-        hasHeader &&
-        hasFontTable &&
-        balanced &&
-        !hasNulls;
-
-    return {
-        isValid,
-        results: {
-            header: hasHeader,
-            fontTable: hasFontTable,
-            balanced,
-            nullBytes: hasNulls
-        }
-    };
-}
-
-
-
-function validateDecompressedRtf(rtf, rawBytesLength, expectedCbRawSize) {
-    const headerOk = rtf.trim().startsWith("{\\rtf");
-    const fonttblOk = rtf.includes("\\fonttbl");
-    const nullBytes = [...rtf].some(c => c.charCodeAt(0) === 0);
-
-    // TRUNCATION CHECK
-    const sizeOk = rawBytesLength === expectedCbRawSize;
-
-    // STRUCTURE CHECK
-    const balanced = hasBalancedBracesRtfAware(rtf);
-
-    return {
-        isValid:
-            headerOk &&
-            fonttblOk &&
-            balanced &&
-            !nullBytes &&
-            sizeOk,
-
-        details: {
-            headerOk,
-            fonttblOk,
-            balanced,
-            nullBytes,
-            sizeOk,
-            expectedCbRawSize,
-            rawBytesLength
-        }
-    };
-}
 
 
 
