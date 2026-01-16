@@ -171,5 +171,111 @@ function validateDecompressedRtf(rtf, rawBytesLength, expectedCbRawSize) {
 
 
 
+function findBraceErrorRtfAware(rtf) {
+    let depth = 0;
+    let i = 0;
+    const len = rtf.length;
+
+    while (i < len) {
+        const ch = rtf[i];
+
+        // -------------------------------------------------------
+        // ESCAPES + CONTROL WORDS (skip entire token)
+        // -------------------------------------------------------
+        if (ch === "\\") {
+            i++; // move past the backslash
+            if (i >= len) break;
+
+            const next = rtf[i];
+
+            // 1) Hex escape   \'hh
+            if (next === "'") {
+                i++; // move past '
+                const hex = rtf.slice(i, i + 2);
+                if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+                    i += 2; // skip hex bytes
+                }
+                continue;
+            }
+
+            // 2) Control word   \b  \fs20  \u1234  etc
+            if (/[A-Za-z]/.test(next)) {
+                i++; // move past first letter
+                // read full control word
+                while (i < len && /[A-Za-z]/.test(rtf[i])) i++;
+                // read optional numeric parameter
+                while (i < len && /[-0-9]/.test(rtf[i])) i++;
+                // optional space terminator
+                if (rtf[i] === " ") i++;
+                continue;
+            }
+
+            // 3) Control symbol or escaped character  \{ \} \~ \- \_
+            // These DO NOT count as structural braces
+            i++; // skip this one symbol
+            continue;
+        }
+
+        // -------------------------------------------------------
+        // STRUCTURAL BRACES
+        // -------------------------------------------------------
+        if (ch === "{") {
+            depth++;
+            i++;
+            continue;
+        }
+
+        if (ch === "}") {
+            depth--;
+            if (depth < 0) {
+                return {
+                    type: "extraClosing",
+                    index: i
+                };
+            }
+            i++;
+            continue;
+        }
+
+        // -------------------------------------------------------
+        // NORMAL TEXT
+        // -------------------------------------------------------
+        i++;
+    }
+
+    // -----------------------------------------------------------
+    // END OF STRING — check if all groups were closed
+    // -----------------------------------------------------------
+    if (depth !== 0) {
+        return {
+            type: "missingClosing",
+            index: len,
+            depthRemaining: depth
+        };
+    }
+
+    return {
+        type: "ok",
+        index: -1
+    };
+}
+
+
+
+const err = findBraceErrorRtfAware(rtfString);
+
+console.log("Result:", err);
+
+if (err.type !== "ok") {
+    const around = rtfString.slice(err.index - 120, err.index + 120);
+    console.log("Context around error:", around);
+}
+
+
+
+
+
+
+
 
 
