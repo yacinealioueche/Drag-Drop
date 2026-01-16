@@ -101,3 +101,98 @@ function validateRtf(rtfStr) {
 }
 
 
+
+
+function hasBalancedBracesRtfAware(rtf) {
+    let depth = 0;
+    let i = 0;
+    const len = rtf.length;
+
+    while (i < len) {
+        const ch = rtf[i];
+
+        // -----------------------------------------
+        // 1 — Backslash: start of control or escape
+        // -----------------------------------------
+        if (ch === '\\') {
+            i++;
+            if (i >= len) break;
+
+            const next = rtf[i];
+
+            // Hex escape  \'hh
+            if (next === '\'') {
+                i++; 
+                const hex = rtf.slice(i, i + 2);
+                if (/^[0-9A-Fa-f]{2}$/.test(hex)) i += 2;
+                continue;
+            }
+
+            // Control word  \b \fs20 \u1234
+            if (/[A-Za-z]/.test(next)) {
+                i++;
+                while (i < len && /[A-Za-z]/.test(rtf[i])) i++;
+                while (i < len && /[-0-9]/.test(rtf[i])) i++;
+                if (rtf[i] === ' ') i++;
+                continue;
+            }
+
+            // Control symbol or escaped single char  \{  \}  \~  \-
+            // IMPORTANT: Do not treat \{ or \} as structure!
+            i++;
+            continue;
+        }
+
+        // -----------------------------------------
+        // 2 — Structural braces
+        // -----------------------------------------
+        if (ch === '{') {
+            depth++;
+            i++;
+            continue;
+        }
+        if (ch === '}') {
+            depth--;
+            if (depth < 0) return false;
+            i++;
+            continue;
+        }
+
+        // -----------------------------------------
+        // 3 — Normal text
+        // -----------------------------------------
+        i++;
+    }
+
+    return depth === 0;
+}
+
+
+
+function validateRtf(rtfStr) {
+    const hasHeader = rtfStr.trim().startsWith("{\\rtf");
+    const hasFontTable = rtfStr.includes("\\fonttbl");
+
+    // Null bytes = corruption from decompression or wrong decode
+    const hasNulls = [...rtfStr].some(c => c.charCodeAt(0) === 0);
+
+    const balanced = hasBalancedBracesRtfAware(rtfStr);
+
+    const isValid =
+        hasHeader &&
+        hasFontTable &&
+        balanced &&
+        !hasNulls;
+
+    return {
+        isValid,
+        results: {
+            header: hasHeader,
+            fontTable: hasFontTable,
+            balanced,
+            nullBytes: hasNulls
+        }
+    };
+}
+
+
