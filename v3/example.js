@@ -47,3 +47,57 @@ export default class CompressedRtfViewer extends LightningElement {
     }
   };
 }
+
+
+
+
+function isValidRtfHeader(rtfStr) {
+    return rtfStr.trim().startsWith("{\\rtf");
+}
+
+
+
+function hasBalancedBraces(rtfStr) {
+    let count = 0;
+    for (let ch of rtfStr) {
+        if (ch === '{') count++;
+        if (ch === '}') count--;
+        if (count < 0) return false; // closing before opening
+    }
+    return count === 0;
+}
+
+
+
+function hasBasicRtfGroups(rtfStr) {
+    return rtfStr.includes("\\rtf1") &&
+           rtfStr.includes("\\fonttbl");
+}
+
+
+function containsNullBytes(rtfStr) {
+    for (let i = 0; i < rtfStr.length; i++) {
+        if (rtfStr.charCodeAt(i) === 0) return true;
+    }
+    return false;
+}
+
+
+function validateRtf(rtfStr) {
+    const results = {
+        header: rtfStr.trim().startsWith("{\\rtf"),
+        balanced: hasBalancedBraces(rtfStr),
+        groups: hasBasicRtfGroups(rtfStr),
+        nullBytes: containsNullBytes(rtfStr)
+    };
+
+    const isValid = 
+        results.header &&
+        results.balanced &&
+        results.groups &&
+        !results.nullBytes;
+
+    return { isValid, results };
+}
+
+
