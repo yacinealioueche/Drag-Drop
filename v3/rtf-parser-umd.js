@@ -1,13 +1,33 @@
 
+import { LightningElement } from 'lwc';
+import { loadScript } from 'lightning/platformResourceLoader';
+import RTF_PARSER from '@salesforce/resourceUrl/rtf_parser_umd';
+
+export default class RtfToHtml extends LightningElement {
+  ready = false;
+  async connectedCallback() {
+    if (!this.ready) {
+      await loadScript(this, RTF_PARSER);
+      this.ready = true;
+    }
+  }
+
+  extractHtml(rtfString) {
+    const { deEncapsulateHtmlString } = window.RtfStreamParser;
+    return deEncapsulateHtmlString(rtfString); // original HTML incl. text
+  }
+}
+``
+
+
 /*! RTF Encapsulated HTML De-Encapsulator (UMD, browser-friendly)
- *  Purpose: Extract the original HTML embedded by Outlook/Word inside RTF
- *  Algorithm: Follows MS-OXRTFEX de-encapsulation guidance for HTMLTAG destinations.
- *  - Copy text inside {\*\htmltag ...} groups (CONTENT) and decode RTF escapes.
- *  - Ignore non-HTMLTAG content outside those groups (suppressed by \htmlrtf).
- *  - Handle \uN with \ucN fallback, \'hh bytes as CP-1252, and escaped \ { }.
- *  References: MS-OXRTFEX (HTMLTAG & Extracting Encapsulated HTML)
- *    https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxrtfex/906fbb0f-2467-490e-8c3e-bdc31c5e9d35
- *    https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxrtfex/752835a4-ad5e-49e3-acce-6b654b828de5
+ *  Copies HTML from {\*\htmltag ...} and text outside when enabled by \htmlrtf0.
+ *  Decodes \uN (with \ucN fallback), \'hh (CP-1252), and escaped \ { }.
+ *  MS-OXRTFEX references:
+ *    - HTMLTAG destination structure
+ *      https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxrtfex/752835a4-ad5e-49e3-acce-6b654b828de5
+ *    - Extracting encapsulated HTML (copy HTMLTAG + outside text when not suppressed by HTMLRTF)
+ *      https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxrtfex/906fbb0f-2467-490e-8c3e-bdc31c5e9d35
  */
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
@@ -20,7 +40,6 @@
 }(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  // ---- CP-1252 map for control range 0x80..0x9F ----
   const CP1252_MAP = {
     0x80: 0x20AC, 0x82: 0x201A, 0x83: 0x0192, 0x84: 0x201E, 0x85: 0x2026,
     0x86: 0x2020, 0x87: 0x2021, 0x88: 0x02C6, 0x89: 0x2030, 0x8A: 0x0160,
@@ -37,43 +56,36 @@
     return cp ? String.fromCodePoint(cp) : '\uFFFD';
   }
 
-  // ---- Encoding helpers for browser ----
   function normalizeEncoding(enc) {
     if (!enc) return 'utf-8';
     const s = String(enc).toLowerCase();
-    if (s === 'cp0') return 'windows-1252'; // fallback if producer wrote cp0
+    if (s === 'cp0') return 'windows-1252';
     return s
       .replace(/^cp(\d+)$/, 'windows-$1')
       .replace(/^ansi(\d+)$/, 'windows-$1');
   }
 
-  /** Browser decoder using TextDecoder (no iconv-lite needed). */
   function browserDecode(buf, enc) {
     const label = normalizeEncoding(enc);
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    // fatal=false: replace invalid sequences rather than throwing
     return new TextDecoder(label, { fatal: false }).decode(u8);
   }
 
-  // ---- Core parser: walk the RTF and extract all {\*\htmltag ...} groups ----
   function deEncapsulateHtmlString(rtf, options) {
     const opts = options || {};
-    // Return empty string on bad input
     if (!rtf || typeof rtf !== 'string') return '';
 
-    let i = 0;
-    const n = rtf.length;
-    const htmlFragments = [];
+    let i = 0, n = rtf.length;
+    const out = [];
 
-    // Track \ucN (Unicode fallback count). Spec allows changes per group; we
-    // keep a stack of states to handle inheritance correctly.
-    let ucSkip = 1;
-    let inIgnorable = false;
-    let inHtmlTag = false;
+    // State (inherited with groups)
+    let ucSkip = 1;            // \ucN fallback count after \uN
+    let inIgnorable = false;   // group started with \*
+    let inHtmlTag = false;     // inside {\*\htmltag ...}
+    let copyOutside = false;   // copy text outside HTMLTAG when \htmlrtf0 is active
 
-    const stack = []; // push { ucSkip, inIgnorable, inHtmlTag }
+    const stack = []; // push/pop { ucSkip, inIgnorable, inHtmlTag, copyOutside }
 
-    // Utility
     const peek = () => (i < n ? rtf[i] : '');
     const next = () => (i < n ? rtf[i++] : '');
 
@@ -86,31 +98,28 @@
           if (/^\\'[0-9a-fA-F]{2}/.test(ahead)) {
             i += 4; skipped += 1; continue;
           }
-          // consume backslash and next token minimally
-          next();
-          if (i < n) next();
+          next(); if (i < n) next();
           skipped += 1;
         } else if (ch === '{' || ch === '}') {
-          // stop at group boundary
           break;
-        } else {
-          next(); skipped += 1;
-        }
+        } else { next(); skipped += 1; }
       }
     }
 
-    function emitText(text) {
-      if (!text) return;
-      if (inHtmlTag) htmlFragments.push(text);
+    function shouldEmit() {
+      return inHtmlTag || copyOutside;
+    }
+
+    function emit(text) {
+      if (text && shouldEmit()) out.push(text);
     }
 
     function readControl() {
-      // pre: current char is '\'
-      next();
+      next(); // consume '\'
       const c = peek();
       if (!c) return null;
 
-      // Escaped literal characters
+      // Escaped literals
       if (c === '\\' || c === '{' || c === '}') {
         next();
         return { type: 'escaped', char: c };
@@ -123,8 +132,7 @@
           const hex = rtf.slice(i, i + 2);
           if (/^[0-9a-fA-F]{2}$/.test(hex)) {
             i += 2;
-            const b = parseInt(hex, 16);
-            return { type: 'text', text: decodeCp1252Byte(b) };
+            return { type: 'text', text: decodeCp1252Byte(parseInt(hex, 16)) };
           }
           return { type: 'text', text: '\uFFFD' };
         }
@@ -137,7 +145,7 @@
         }
       }
 
-      // Control word [letters][optional sign/number][optional delim space]
+      // Control word
       let word = '';
       while (/[a-zA-Z]/.test(peek())) word += next();
 
@@ -146,7 +154,7 @@
       while (/[0-9]/.test(peek())) { num += next(); hasParam = true; }
       const param = hasParam ? sign * parseInt(num || '0', 10) : undefined;
 
-      if (peek() === ' ') next(); // consume delimiting space
+      if (peek() === ' ') next(); // delimiter space
 
       return { type: 'control', word, hasParam, param };
     }
@@ -156,8 +164,7 @@
 
       if (ch === '{') {
         next();
-        stack.push({ ucSkip, inIgnorable, inHtmlTag });
-        // New group inherits; flags will update as we read controls inside
+        stack.push({ ucSkip, inIgnorable, inHtmlTag, copyOutside });
       }
       else if (ch === '}') {
         next();
@@ -165,16 +172,17 @@
         ucSkip = st.ucSkip ?? ucSkip;
         inIgnorable = st.inIgnorable ?? false;
         inHtmlTag = st.inHtmlTag ?? false;
+        copyOutside = st.copyOutside ?? false;
       }
       else if (ch === '\\') {
         const tok = readControl();
         if (!tok) continue;
 
         if (tok.type === 'escaped') {
-          emitText(tok.char);
+          emit(tok.char);
         }
         else if (tok.type === 'text') {
-          emitText(tok.text);
+          emit(tok.text);
         }
         else if (tok.type === 'dest') {
           inIgnorable = true;
@@ -182,44 +190,47 @@
         else if (tok.type === 'control') {
           const { word, hasParam, param } = tok;
 
+          // Unicode fallback count
           if (word === 'uc' && hasParam && param >= 0) {
-            ucSkip = param;
-            continue;
+            ucSkip = param; continue;
           }
 
+          // Unicode character
           if (word === 'u' && hasParam) {
             let cp = param;
             if (cp < 0) cp = 0x10000 + cp;
-            emitText((cp >= 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : '\uFFFD');
+            emit((cp >= 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : '\uFFFD');
             skipFallback(ucSkip);
             continue;
           }
 
-          // Enter HTMLTAG destination when we see \htmltag inside an ignorable group
+          // Enter HTMLTAG destination inside ignorable group
           if (inIgnorable && word === 'htmltag') {
-            inHtmlTag = true;
+            inHtmlTag = true; continue;
+          }
+
+          // HTMLRTF toggle (outside HTMLTAG): param==0 => allow copy; else suppress
+          if (word === 'htmlrtf') {
+            copyOutside = (hasParam && param === 0);
             continue;
           }
 
-          // Within HTMLTAG, map simple whitespace controls
-          if (inHtmlTag) {
-            if (word === 'par' || word === 'line') emitText('\n');
-            else if (word === 'tab') emitText('\t');
-            // Ignore formatting controls etc.
-          }
-          // Outside HTMLTAG: ignore (de-encapsulation wants only encapsulated HTML)
+          // Whitespace controls
+          if (word === 'par' || word === 'line') { emit('\n'); continue; }
+          if (word === 'tab') { emit('\t'); continue; }
+
+          // Ignore other controls here
         }
       }
       else {
-        // Literal char
-        emitText(next());
+        emit(next());
       }
     }
 
-    // Optional: unescape basic entities if the producer encoded tags as &lt; &gt; &amp;
-    const unescapeEntities = opts.unescapeHtmlEntities === true;
-    let html = htmlFragments.join('');
-    if (unescapeEntities) {
+    // Optional: unescape basic entities if producer encoded tags as &lt; &gt; &amp;
+    const unescape = opts.unescapeHtmlEntities === true;
+    let html = out.join('');
+    if (unescape) {
       html = html
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
@@ -230,26 +241,16 @@
     return html;
   }
 
-  /** Compatibility API mirroring popular libs: returns { mode, text }. */
   function deEncapsulateSync(input, _opts) {
-    // Accept string; if a Buffer/Uint8Array is passed, convert to string assuming UTF-8
     let rtf = '';
-    if (typeof input === 'string') {
-      rtf = input;
-    } else if (input instanceof Uint8Array) {
-      rtf = new TextDecoder('utf-8').decode(input);
-    } else {
-      rtf = String(input || '');
-    }
+    if (typeof input === 'string') rtf = input;
+    else if (input instanceof Uint8Array) rtf = new TextDecoder('utf-8').decode(input);
+    else rtf = String(input || '');
+
     const html = deEncapsulateHtmlString(rtf, { unescapeHtmlEntities: true });
-    if (!html) {
-      // If no HTMLTAG groups found, we return "text" empty to be explicit
-      return { mode: 'html', text: '' };
-    }
-    return { mode: 'html', text: html };
+    return { mode: 'html', text: html || '' };
   }
 
-  // Public API
   return {
     deEncapsulateHtmlString,
     deEncapsulateSync,
