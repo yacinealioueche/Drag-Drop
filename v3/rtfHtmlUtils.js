@@ -1,3 +1,4 @@
+//how to call it: import { rtfToOriginalHtml } from 'c/rtfHtmlUtils';
 
 /**
  * RTF Encapsulated HTML → Original HTML (LWC-ready, no dependencies)
