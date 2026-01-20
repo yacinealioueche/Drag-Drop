@@ -6,22 +6,19 @@ import { rtfToOriginalHtml } from 'c/rtfHtmlUtils';
 const htmlRaw = rtfToOriginalHtml(rtf, { unescapeHtmlEntities: true });
 
 // Sanity check:
-console.log(htmlRaw.slice(0, 200));
+console.log(htmlRaw.slice(0, 400));
+
 
 
 
 /**
  * Extract original HTML from RTF that encapsulates HTML using {\*\htmltag ...} groups.
- * LWC-ready, no dependencies.
- *
- * Based on MS-OXRTFEX de-encapsulation behavior:
- * - Copy text inside HTMLTAG destination groups to rebuild the HTML.
- * - Decode RTF escapes (\'hh CP-1252, \uN with \ucN fallback, and escaped braces/backslash).
- * - Ignore non-HTMLTAG RTF content (which is suppressed by \htmlrtf for de-encapsulation).
+ * LWC-ready, dependency-free.
  *
  * References:
- *  - [MS-OXRTFEX] Extracting Encapsulated HTML from RTF (de-encapsulation) — Microsoft Learn
- *  - [MS-OXRTFEX] Encoding HTML into RTF (producer behavior) — Microsoft Learn
+ *  - [MS-OXRTFEX] Extracting Encapsulated HTML from RTF — copy CONTENT of HTMLTAG groups, decode escapes. 
+ *  - [MS-OXRTFEX] Encoding HTML into RTF — producers set \fromhtml/\htmlrtf and emit {\*\htmltag...} groups.
+ * (See documentation links in comments of the previous message.)
  */
 
 const CP1252_MAP = {
@@ -32,7 +29,6 @@ const CP1252_MAP = {
     0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A, 0x9C: 0x0153,
     0x9E: 0x017E, 0x9F: 0x0178
 };
-
 function decodeCp1252Byte(b) {
     if (b >= 0x00 && b <= 0x7F) return String.fromCharCode(b);
     if (b >= 0xA0 && b <= 0xFF) return String.fromCharCode(b);
@@ -40,7 +36,7 @@ function decodeCp1252Byte(b) {
     return cp ? String.fromCodePoint(cp) : '\uFFFD';
 }
 
-// Optional: unescape a tiny, safe subset of HTML entities
+// Optional: unescape a safe subset of HTML entities commonly seen in the RTF payloads
 function decodeBasicHtmlEntities(s) {
     return s
         .replace(/&lt;/g, '<')
@@ -51,171 +47,133 @@ function decodeBasicHtmlEntities(s) {
 }
 
 /**
- * Extract encapsulated HTML from decompressed RTF.
- * @param {string} rtfString - decompressed RTF
+ * Extract encapsulated HTML by concatenating ALL {\*\htmltag ...} groups.
+ * @param {string} rtfString  Decompressed RTF string
  * @param {Object} [opts]
- * @param {boolean} [opts.unescapeHtmlEntities=false] - convert &lt; &gt; &amp; etc. to literal chars
- * @returns {string} original HTML (best effort)
+ * @param {boolean} [opts.unescapeHtmlEntities=false]  convert &lt;&gt;&amp;… to literal chars
+ * @returns {string}
  */
 export function rtfToOriginalHtml(rtfString, { unescapeHtmlEntities = false } = {}) {
     if (!rtfString || typeof rtfString !== 'string') return '';
 
-    let i = 0;
     const len = rtfString.length;
-    const out = [];
+    let i = 0;
+    const fragments = [];
 
-    // State (per RTF spec, inherited via stack for groups)
-    let ucSkip = 1;          // \ucN fallback count after \uN
-    let inIgnorable = false; // group starts with \*
-    let inHtmlTag = false;   // currently inside {\*\htmltag ...}
-    const stack = [];
+    // Detect global \ucN from header (affects how many fallback chars to skip after \uN)
+    let ucSkip = 1;
+    const ucMatch = rtfString.slice(0, 2048).match(/\\uc(-?\d+)/);
+    if (ucMatch) {
+        const n = parseInt(ucMatch[1], 10);
+        if (!Number.isNaN(n) && n >= 0) ucSkip = n;
+    }
 
-    const peek = () => (i < len ? rtfString[i] : '');
-    const next = () => (i < len ? rtfString[i++] : '');
+    function readHtmltagGroupAt(startIndex) {
+        // Precondition: rtfString[startIndex] === '{'
+        const n = len;
+        let j = startIndex + 1;
 
-    function skipFallback(n) {
-        let skipped = 0;
-        while (skipped < n && i < len) {
-            const ch = peek();
+        // optional whitespace
+        while (j < n && /\s/.test(rtfString[j])) j++;
+        // must be \*
+        if (!(rtfString[j] === '\\' && rtfString[j + 1] === '*')) return null;
+        j += 2;
+        while (j < n && /\s/.test(rtfString[j])) j++;
+        // must be \htmltag
+        if (rtfString[j] !== '\\') return null;
+        j++;
+        if (!rtfString.startsWith('htmltag', j)) return null;
+        j += 'htmltag'.length;
+
+        // optional numeric parameter (tag code) and optional delimiting space
+        while (j < n && /[-0-9]/.test(rtfString[j])) j++;
+        if (rtfString[j] === ' ') j++;
+
+        // Now collect text until the matching '}' for this group
+        let depth = 1;
+        let k = j;
+        const out = [];
+
+        function emit(s) { if (s) out.push(s); }
+
+        while (k < n && depth > 0) {
+            const ch = rtfString[k];
+
+            if (ch === '{') { depth++; k++; continue; }
+            if (ch === '}') { depth--; k++; continue; }
+
             if (ch === '\\') {
-                const ahead = rtfString.slice(i, i + 4);
-                if (/^\\'[0-9a-fA-F]{2}/.test(ahead)) {
-                    i += 4;
-                    skipped += 1;
+                k++;
+                const c2 = rtfString[k];
+
+                // Escaped literals
+                if (c2 === '\\' || c2 === '{' || c2 === '}') {
+                    emit(c2); k++; continue;
+                }
+
+                // Hex byte: \'hh
+                if (c2 === "'") {
+                    const hex = rtfString.substr(k + 1, 2);
+                    if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+                        emit(decodeCp1252Byte(parseInt(hex, 16)));
+                        k += 3;
+                    } else {
+                        emit('\uFFFD'); k++;
+                    }
                     continue;
                 }
-                next();
-                if (i < len) next();
-                skipped += 1;
-            } else if (ch === '{' || ch === '}') {
-                break;
-            } else {
-                next();
-                skipped += 1;
-            }
-        }
-    }
 
-    function readControl() {
-        next(); // consume '\'
-        const ch = peek();
-        if (!ch) return null;
+                // Control word with optional numeric param
+                let w = '';
+                while (k < n && /[a-zA-Z]/.test(rtfString[k])) w += rtfString[k++];
+                let sign = 1, hasNum = false, num = '';
+                if (rtfString[k] === '-') { sign = -1; hasNum = true; k++; }
+                while (k < n && /[0-9]/.test(rtfString[k])) { num += rtfString[k++]; hasNum = true; }
+                if (rtfString[k] === ' ') k++; // delimiter if present
 
-        // Escaped literal characters
-        if (ch === '\\' || ch === '{' || ch === '}') {
-            next();
-            return { type: 'escaped', char: ch };
-        }
+                if (w === 'u' && hasNum) {
+                    let cp = sign * parseInt(num || '0', 10);
+                    if (cp < 0) cp = 0x10000 + cp;
+                    emit((cp >= 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : '\uFFFD');
 
-        // Control symbol
-        if (!/[a-zA-Z]/.test(ch)) {
-            const sym = next();
-            if (sym === "'") {
-                const hex = rtfString.slice(i, i + 2);
-                if (/^[0-9a-fA-F]{2}$/.test(hex)) {
-                    i += 2;
-                    return { type: 'text', text: decodeCp1252Byte(parseInt(hex, 16)) };
+                    // Skip ucSkip fallback chars
+                    let skipped = 0;
+                    while (skipped < ucSkip && k < n) {
+                        if (rtfString[k] === '\\' && rtfString[k + 1] === "'") { k += 4; skipped++; continue; }
+                        if (rtfString[k] === '{' || rtfString[k] === '}') break;
+                        k++; skipped++;
+                    }
+                } else if (w === 'par' || w === 'line') {
+                    emit('\n');
+                } else if (w === 'tab') {
+                    emit('\t');
+                } else {
+                    // Ignore all other control words within HTMLTAG group
                 }
-                return { type: 'text', text: '\uFFFD' };
+                continue;
             }
-            switch (sym) {
-                case '~': return { type: 'text', text: '\u00A0' };
-                case '-': return { type: 'text', text: '\u00AD' };
-                case '_': return { type: 'text', text: '\u2011' };
-                case '*': return { type: 'dest', name: '*' };
-                default:  return { type: 'noop' };
-            }
+
+            // Literal character
+            emit(ch);
+            k++;
         }
 
-        // Control word
-        let word = '';
-        while (/[a-zA-Z]/.test(peek())) word += next();
-
-        // Optional signed integer parameter
-        let hasParam = false, sign = 1, numStr = '';
-        if (peek() === '-') { sign = -1; hasParam = true; next(); }
-        while (/[0-9]/.test(peek())) { numStr += next(); hasParam = true; }
-        const param = hasParam ? sign * parseInt(numStr || '0', 10) : undefined;
-
-        if (peek() === ' ') next(); // delimiter
-
-        return { type: 'control', word, hasParam, param };
-    }
-
-    function emit(text) {
-        if (inHtmlTag && text) out.push(text);
+        return { endIndex: k, text: out.join('') };
     }
 
     while (i < len) {
-        const ch = peek();
-
-        if (ch === '{') {
-            next();
-            stack.push({ ucSkip, inIgnorable, inHtmlTag });
-            // New group inherits, flags update when we see \* or \htmltag below
-
-        } else if (ch === '}') {
-            next();
-            const st = stack.pop() || {};
-            ucSkip = st.ucSkip ?? ucSkip;
-            inIgnorable = st.inIgnorable ?? false;
-            inHtmlTag = st.inHtmlTag ?? false;
-
-        } else if (ch === '\\') {
-            const tok = readControl();
-            if (!tok) continue;
-
-            if (tok.type === 'escaped') {
-                emit(tok.char);
-
-            } else if (tok.type === 'text') {
-                emit(tok.text);
-
-            } else if (tok.type === 'dest') {
-                // Group is ignorable (destination) — needed to detect {\*\htmltag ...}
-                inIgnorable = true;
-
-            } else if (tok.type === 'control') {
-                const { word, hasParam, param } = tok;
-
-                // Set \ucN for unicode fallback handling
-                if (word === 'uc' && hasParam && param >= 0) {
-                    ucSkip = param;
-                    continue;
-                }
-
-                // Unicode escape \uN
-                if (word === 'u' && hasParam) {
-                    let cp = param;
-                    if (cp < 0) cp = 0x10000 + cp;
-                    emit((cp >= 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : '\uFFFD');
-                    skipFallback(ucSkip);
-                    continue;
-                }
-
-                // Enter HTMLTAG destination when we see \htmltag inside an ignorable group
-                if (inIgnorable && word === 'htmltag') {
-                    inHtmlTag = true;
-                    continue;
-                }
-
-                // Within HTMLTAG groups, map common whitespace controls
-                if (inHtmlTag) {
-                    if (word === 'par' || word === 'line') emit('\n');
-                    else if (word === 'tab') emit('\t');
-                    // formatting controls are ignored
-                }
-
-                // Outside HTMLTAG: ignore (de-encapsulation wants only encapsulated HTML)
+        if (rtfString[i] === '{') {
+            const group = readHtmltagGroupAt(i);
+            if (group) {
+                fragments.push(group.text);
+                i = group.endIndex; // continue after the group
+                continue;
             }
-
-        } else {
-            // Plain literal character
-            const c = next();
-            emit(c);
         }
+        i++;
     }
 
-    const html = out.join('');
-    return unescapeHtmlEntities ? decodeBasicHtmlEntities(html) : html;
+    let html = fragments.join('');
+    if (unescapeHtmlEntities) html = decodeBasicHtmlEntities(html);
+    return html;
 }
