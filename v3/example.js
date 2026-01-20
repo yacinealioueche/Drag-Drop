@@ -1,4 +1,31 @@
 
+// someComponent.js
+import { LightningElement, track } from 'lwc';
+import { loadScript } from 'lightning/platformResourceLoader';
+import RTF_PARSER from '@salesforce/resourceUrl/rtf_parser_umd';
+
+export default class SomeComponent extends LightningElement {
+  @track html = '';
+  ready = false;
+
+  async connectedCallback() {
+    if (!this.ready) {
+      await loadScript(this, RTF_PARSER);
+      this.ready = true;
+    }
+  }
+
+  extract(rtfString) {
+    // Ensure rtfString is the *decompressed* RTF
+    const { deEncapsulateHtmlString } = window.RtfStreamParser;
+    this.html = deEncapsulateHtmlString(rtfString);
+  }
+}
+
+
+//////////////////////////////////////////////////
+
+
 import { LightningElement } from 'lwc';
 import { loadScript } from 'lightning/platformResourceLoader';
 
@@ -270,6 +297,7 @@ if (err.type !== "ok") {
     const around = rtfString.slice(err.index - 120, err.index + 120);
     console.log("Context around error:", around);
 }
+
 
 
 
