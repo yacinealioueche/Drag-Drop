@@ -1,0 +1,8 @@
+
+.drop {
+  border: 2px dashed #9fa3a8;
+  border-radius: .5rem;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+}
