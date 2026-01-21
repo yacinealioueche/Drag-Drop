@@ -1,0 +1,21 @@
+
+<template>
+  <div class="slds-card slds-p-around_medium">
+    <h3 class="slds-text-heading_small slds-m-bottom_small">
+      Drop Outlook email (.msg) or click to select
+    </h3>
+
+    <div class="drop"
+         ondragover={handleDragOver}
+         ondrop={handleDrop}
+         onclick={openFilePicker}>
+      <span>Drag & drop or click to choose</span>
+    </div>
+
+    <input type="file" multiple hidden ref="fileInput"
+           accept=".msg,.eml,application/pdf,application/msword,
+                   application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+                   application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+           onchange={handleFilePicked}/>
+  </div>
+</template>
