@@ -1,0 +1,68 @@
+
+<template>
+  <lightning-modal-header label="Create Case from Email"></lightning-modal-header>
+  <lightning-modal-body>
+    <div class="slds-grid slds-wrap slds-gutters">
+      <div class="slds-col slds-size_1-of-2">
+        <lightning-input type="date" label="Inception Date"
+          value={form.inceptionDate}
+          onchange={e=>this.form.inceptionDate = e.target.value}>
+        </lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-2">
+        <lightning-input label="Global Product"
+          value={form.globalProduct}
+          onchange={e=>this.form.globalProduct = e.target.value}>
+        </lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-1">
+        <lightning-input label="Case Subject" value={form.subject}
+          onchange={e=>this.form.subject = e.target.value}>
+        </lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-1">
+        <lightning-textarea label="Description" value={form.description}
+          onchange={e=>this.form.description = e.target.value}>
+        </lightning-textarea>
+      </div>
+    </div>
+
+    <template if:true={inlineSmallAttachments.length}>
+      <p class="slds-m-top_medium slds-text-title_caps">
+        Original Email Attachments (small; will be attached)
+      </p>
+      <ul>
+        <template for:each={inlineSmallAttachments} for:item="a">
+          <li key={a.fileName}>{a.fileName}</li>
+        </template>
+      </ul>
+    </template>
+
+    <div class="slds-m-top_medium">
+      <label class="slds-form-element__label">Add more attachments (≤ 4 MB each)</label>
+      <input type="file" multiple onchange={handleAddFiles}/>
+      <template if:true={extraUploads.length}>
+        <ul class="slds-m-top_small">
+          <template for:each={extraUploads} for:item="f">
+            <li key={f.fileName}>{f.fileName} ({f.size} bytes)</li>
+          </template>
+        </ul>
+      </template>
+    </div>
+
+    <template if:true={originalMsg}>
+      <div class="slds-m-top_medium">
+        <lightning-formatted-text value="Original email (.msg) will be attached for audit." />
+        <template if:false={originalMsg.base64}>
+          <div class="slds-text-color_error slds-m-top_x-small">
+            Original .msg > 4 MB. Please add it via the file picker above.
+          </div>
+        </template>
+      </div>
+    </template>
+  </lightning-modal-body>
+  <lightning-modal-footer>
+    <lightning-button variant="neutral" label="Cancel" onclick={handleCancel}></lightning-button>
+    <lightning-button class="slds-m-left_small" variant="brand" label="Create Case" onclick={handleCreateCase}></lightning-button>
+  </lightning-modal-footer>
+</template>
