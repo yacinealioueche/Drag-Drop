@@ -1,0 +1,16 @@
+<template>
+  <div class="slds-card slds-var-p-around_medium">
+    <h2 class="slds-text-heading_small slds-var-m-bottom_small">
+      Drop Outlook email (.msg / .eml) to create a Case
+    </h2>
+
+    <div class="dropzone"
+         ondragover={handleDragOver}
+         ondrop={handleDrop}>
+      <p class="slds-text-body_regular">
+        Drag & drop an email here, or click to choose a file
+      </p>
+      <input class="fileInput" type="file" accept=".msg,.eml" onchange={handleFileInput} />
+    </div>
+  </div>
+</template>
