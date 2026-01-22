@@ -1,4 +1,3 @@
-
 import { LightningElement, api } from 'lwc';
 import { loadScript } from 'lightning/platformResourceLoader';
 import MSGREADER from '@salesforce/resourceUrl/msgreader_min'; // your static resource name
