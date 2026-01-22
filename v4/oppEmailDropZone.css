@@ -1,0 +1,17 @@
+.dropzone {
+  border: 2px dashed #0176d3;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+}
+.dropzone:hover {
+  background: #f3f6fb;
+}
+.fileInput {
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+  height: 4rem;
+  cursor: pointer;
+}
