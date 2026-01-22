@@ -1,0 +1,62 @@
+<template>
+  <section class="slds-p-around_medium">
+    <lightning-layout multiple-rows>
+      <lightning-layout-item size="12" class="slds-var-m-bottom_medium">
+        <h2 class="slds-text-heading_small">Review & Create Case</h2>
+        <p class="slds-text-color_weak">
+          Opportunity: {opptyName}
+        </p>
+      </lightning-layout-item>
+
+      <!-- Read-only fields from Opportunity -->
+      <lightning-layout-item size="6">
+        <lightning-input type="text" label="Inception Date" value={inceptionDate} readonly></lightning-input>
+      </lightning-layout-item>
+      <lightning-layout-item size="6">
+        <lightning-input type="text" label="Global Product" value={globalProduct} readonly></lightning-input>
+      </lightning-layout-item>
+
+      <!-- Case fields -->
+      <lightning-layout-item size="12" class="slds-var-m-top_medium">
+        <lightning-input label="Case Subject" value={subject} onchange={handleInput}></lightning-input>
+      </lightning-layout-item>
+      <lightning-layout-item size="6">
+        <lightning-combobox label="Origin" value={origin} options={originOptions} onchange={handleInput}></lightning-combobox>
+      </lightning-layout-item>
+      <lightning-layout-item size="6">
+        <lightning-combobox label="Priority" value={priority} options={priorityOptions} onchange={handleInput}></lightning-combobox>
+      </lightning-layout-item>
+      <lightning-layout-item size="12">
+        <lightning-textarea label="Description" value={description} onchange={handleInput}></lightning-textarea>
+      </lightning-layout-item>
+
+      <!-- Additional attachments uploader -->
+      <lightning-layout-item size="12" class="slds-var-m-top_medium">
+        <h3 class="slds-text-title_bold slds-var-m-bottom_x-small">Add extra attachments (optional)</h3>
+        <lightning-file-upload
+          label="Drop or select files"
+          record-id={recordId}
+          multiple
+          onuploadfinished={handleUploadFinished}>
+        </lightning-file-upload>
+        <template if:true={newFiles.length}>
+          <p class="slds-text-color_weak slds-var-m-top_x-small">
+            {newFiles.length} file(s) will be included
+          </p>
+        </template>
+      </lightning-layout-item>
+
+      <!-- Email preview -->
+      <lightning-layout-item size="12" class="slds-var-m-top_medium">
+        <h3 class="slds-text-title_bold slds-var-m-bottom_x-small">Email Preview</h3>
+        <lightning-formatted-text value={emailHeader}></lightning-formatted-text>
+        <lightning-textarea label="Email Text Body" value={emailText} readonly></lightning-textarea>
+      </lightning-layout-item>
+
+      <lightning-layout-item size="12" class="slds-var-m-top_large slds-align_absolute-center">
+        <lightning-button label="Cancel" variant="neutral" onclick={closeModal}></lightning-button>
+        <lightning-button label="Create Case" variant="brand" class="slds-var-m-left_small" onclick={createCase}></lightning-button>
+      </lightning-layout-item>
+    </lightning-layout>
+  </section>
+</template>
