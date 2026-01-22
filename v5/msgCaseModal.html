@@ -1,0 +1,68 @@
+<template>
+    <section role="dialog" class="slds-modal slds-fade-in-open">
+        <div class="slds-modal__container">
+
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium">Create Case From Email</h2>
+            </header>
+
+            <div class="slds-modal__content slds-p-around_medium">
+
+                <!-- Opportunity -->
+                <lightning-card title="Opportunity Details">
+                    <div class="slds-p-horizontal_small">
+                        <p><strong>Inception Date:</strong> {inceptionDate}</p>
+                        <p><strong>Global Product:</strong> {globalProduct}</p>
+                    </div>
+                </lightning-card>
+
+                <!-- Case Fields -->
+                <lightning-input 
+                    label="Case Subject"
+                    value={caseSubject}
+                    onchange={handleInput}
+                    data-field="caseSubject">
+                </lightning-input>
+
+                <lightning-combobox 
+                    label="Priority"
+                    value={casePriority}
+                    options={priorityOptions}
+                    onchange={handleInput}
+                    data-field="casePriority">
+                </lightning-combobox>
+
+                <lightning-textarea
+                    label="Description"
+                    value={caseDescription}
+                    onchange={handleInput}
+                    data-field="caseDescription">
+                </lightning-textarea>
+
+                <h3 class="slds-text-title_caps slds-m-top_medium">Add Attachments</h3>
+
+                <lightning-file-upload
+                    multiple
+                    record-id={recordId}
+                    onuploadfinished={handleUploads}>
+                </lightning-file-upload>
+
+                <lightning-card title="Email Preview" class="slds-m-top_large">
+                    <div class="slds-p-horizontal_small">
+                        <p><strong>Subject:</strong> {emailSubject}</p>
+                        <p><strong>From:</strong> {emailFrom}</p>
+                        <lightning-textarea value={emailBodyPreview} readonly></lightning-textarea>
+                    </div>
+                </lightning-card>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button label="Cancel" onclick={closeModal}></lightning-button>
+                <lightning-button variant="brand" label="Create Case" onclick={createCase}></lightning-button>
+            </footer>
+
+        </div>
+    </section>
+
+    <div class="slds-backdrop slds-backdrop_open"></div>
+</template>
