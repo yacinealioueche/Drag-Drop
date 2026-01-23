@@ -1,13 +1,5 @@
-public with sharing class EmailMsgControllerV2 {
 
-    @AuraEnabled(cacheable=true)
-    public static Opportunity getOpportunityFields(Id oppId) {
-        return [
-            SELECT Inception_Date__c, Global_Product__c
-            FROM Opportunity
-            WHERE Id = :oppId
-        ];
-    }
+public with sharing class EmailMsgControllerV2 {
 
     @AuraEnabled
     public static void createCaseEmailAndAttachments(
@@ -29,8 +21,10 @@ public with sharing class EmailMsgControllerV2 {
         );
         insert c;
 
-        // 2. Link Opportunity
-        Opportunity o = [SELECT Id FROM Opportunity WHERE Id = :oppId];
+        // 2. Link to Opportunity
+        Opportunity o = [
+            SELECT Id FROM Opportunity WHERE Id = :oppId
+        ];
         o.CaseId__c = c.Id;
         update o;
 
@@ -48,34 +42,33 @@ public with sharing class EmailMsgControllerV2 {
         );
         insert em;
 
-        // 4. Attach original .msg
+        // 4. Upload Original MSG File
         if (String.isNotBlank(originalMsgBase64)) {
-            Id docId = insertContent(originalMsgBase64, 'originalEmail.msg');
+            Id docId = insertFile(originalMsgBase64, 'OriginalEmail.msg');
             link(docId, c.Id);
             link(docId, em.Id);
         }
 
-        // 5. Attach parsed attachments
+        // 5. Upload parsed attachments
         for (Object a : parsedAttachments) {
-            Map<String, Object> att = (Map<String, Object>)a;
-            String fname = (String)att.get('fileName');
+            Map<String, Object> att = (Map<String, Object>) a;
+            String name = (String)att.get('fileName');
             String base64 = (String)att.get('base64');
-
-            Id docId = insertContent(base64, fname);
-            link(docId, c.Id);
-            link(docId, em.Id);
-        }
-
-        // 6. Additional files user added
-        if (newFileDocumentIds != null) {
-            for (String docId : newFileDocumentIds) {
+            if (!String.isBlank(base64)) {
+                Id docId = insertFile(base64, name);
                 link(docId, c.Id);
                 link(docId, em.Id);
             }
         }
+
+        // 6. Upload additional modal attachments
+        for (String docId : newFileDocumentIds) {
+            link(docId, c.Id);
+            link(docId, em.Id);
+        }
     }
 
-    private static Id insertContent(String base64, String name) {
+    private static Id insertFile(String base64, String name) {
         ContentVersion cv = new ContentVersion(
             Title = name,
             PathOnClient = name,
@@ -88,10 +81,10 @@ public with sharing class EmailMsgControllerV2 {
         ].ContentDocumentId;
     }
 
-    private static void link(Id docId, Id parentId) {
+    private static void link(Id docId, Id parent) {
         insert new ContentDocumentLink(
             ContentDocumentId = docId,
-            LinkedEntityId = parentId,
+            LinkedEntityId = parent,
             ShareType = 'V'
         );
     }
