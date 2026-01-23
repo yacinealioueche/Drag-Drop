@@ -1,28 +1,36 @@
-import { LightningElement, api, track } from 'lwc';
-import getOpportunityFields from '@salesforce/apex/EmailMsgControllerV2.getOpportunityFields';
+
+import LightningModal from 'lightning/modal';
+import { api, track, wire } from 'lwc';
+import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
+
+import INCEPTION from '@salesforce/schema/Opportunity.Inception_Date__c';
+import PRODUCT from '@salesforce/schema/Opportunity.Global_Product__c';
+
 import createCaseEmailAndAttachments from '@salesforce/apex/EmailMsgControllerV2.createCaseEmailAndAttachments';
 
-export default class MsgCaseModal extends LightningElement {
+export default class MsgCaseModal extends LightningModal {
+
     @api recordId;
     @api parsedEmail;
-    @api originalMsgBase64;
     @api parsedAttachments;
-
-    @track inceptionDate;
-    @track globalProduct;
+    @api originalMsgBase64;
 
     @track newFiles = [];
 
+    // Case fields
     caseSubject = '';
     casePriority = 'Medium';
     caseDescription = '';
 
-    connectedCallback() {
-        getOpportunityFields({ oppId: this.recordId })
-            .then(res => {
-                this.inceptionDate = res.Inception_Date__c;
-                this.globalProduct = res.Global_Product__c;
-            });
+    @wire(getRecord, { recordId: '$recordId', fields: [INCEPTION, PRODUCT] })
+    opportunity;
+
+    get inceptionDate() {
+        return getFieldValue(this.opportunity.data, INCEPTION);
+    }
+
+    get globalProduct() {
+        return getFieldValue(this.opportunity.data, PRODUCT);
     }
 
     get priorityOptions() {
@@ -33,34 +41,30 @@ export default class MsgCaseModal extends LightningElement {
         ];
     }
 
-    get emailSubject() { return this.parsedEmail.subject; }
-    get emailFrom() { return this.parsedEmail.senderEmail; }
-    get emailBodyPreview() { return this.parsedEmail.textBody; }
-
-    handleUploads(evt) {
-        this.newFiles = evt.detail.files.map(f => f.documentId);
-    }
-
     handleInput(e) {
         this[e.target.dataset.field] = e.target.value;
     }
 
-    closeModal() {
-        this.dispatchEvent(new CustomEvent('close'));
+    handleUploads(e) {
+        this.newFiles = e.detail.files.map(f => f.documentId);
     }
 
-    async createCase() {
+    async createSubmission() {
         await createCaseEmailAndAttachments({
             oppId: this.recordId,
-            caseSubject: this.caseSubject,
+            caseSubject: this.caseSubject || this.parsedEmail.subject,
             casePriority: this.casePriority,
-            caseDescription: this.caseDescription,
+            caseDescription: this.caseDescription || this.parsedEmail.textBody,
             emailData: this.parsedEmail,
             originalMsgBase64: this.originalMsgBase64,
             parsedAttachments: this.parsedAttachments,
             newFileDocumentIds: this.newFiles
         });
 
-        this.dispatchEvent(new CustomEvent('success'));
+        this.close('success');
+    }
+
+    closeModal() {
+        this.close('cancel');
     }
 }
