@@ -1,11 +1,12 @@
+
 <template>
-    <lightning-card title="Outlook .MSG Importer V2" icon-name="doctype:email">
+    <lightning-card title="Upload Outlook Email (.msg)" icon-name="doctype:email">
         <div class="slds-p-around_medium">
 
             <lightning-input 
-                type="file" 
-                accept=".msg" 
-                label="Select Outlook .msg Email"
+                type="file"
+                accept=".msg"
+                label="Drop or choose an Outlook .msg email"
                 onchange={handleFileChange}
                 disabled={isLoading}>
             </lightning-input>
@@ -16,7 +17,7 @@
             </template>
 
             <template if:true={errorMessage}>
-                <div class="slds-notify slds-notify_alert slds-theme_error slds-m-top_medium">
+                <div class="slds-text-color_error slds-m-top_small">
                     {errorMessage}
                 </div>
             </template>
