@@ -1,0 +1,41 @@
+<template>
+    <article class="slds-p-around_medium">
+        <h1 class="slds-text-heading_medium slds-m-bottom_medium">Review & Create Submission</h1>
+
+        <!-- Opportunity fields -->
+        <lightning-card title="Opportunity">
+            <div class="slds-p-around_small">
+                <p><strong>Inception Date:</strong> {inceptionDate}</p>
+                <p><strong>Global Product:</strong> {globalProduct}</p>
+            </div>
+        </lightning-card>
+
+        <!-- Email preview -->
+        <lightning-card title="Email">
+            <div class="slds-p-around_small">
+                <p><strong>Subject:</strong> {subject}</p>
+                <p><strong>From:</strong> {fromAddress}</p>
+                <p><strong>To:</strong> {toAddress}</p>
+                <lightning-textarea class="slds-m-top_small" value={bodyPreview} readonly></lightning-textarea>
+            </div>
+        </lightning-card>
+
+        <!-- Attachments -->
+        <template if:true={hasAttachments}>
+            <lightning-card title="Attachments">
+                <div class="slds-p-around_small">
+                    <ul class="slds-list_dotted">
+                        <template for:each={attachments} for:item="a">
+                            <li key={a.fileName}>{a.fileName}</li>
+                        </template>
+                    </ul>
+                </div>
+            </lightning-card>
+        </template>
+
+        <footer class="slds-m-top_medium">
+            <lightning-button label="Cancel" onclick={closeModal}></lightning-button>
+            <lightning-button variant="brand" label="Create Case" onclick={createCase} class="slds-m-left_small"></lightning-button>
+        </footer>
+    </article>
+</template>
