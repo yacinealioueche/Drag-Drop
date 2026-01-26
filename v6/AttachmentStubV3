@@ -1,0 +1,4 @@
+public class AttachmentStubV3 {
+    @AuraEnabled public String fileName {get; set;}
+    @AuraEnabled public String base64   {get; set;}
+}
