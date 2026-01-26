@@ -30,13 +30,43 @@ export default class EmailReviewModalV3 extends LightningModal {
         this.close('cancel');
     }
 
-    async createCase() {
-        await createCaseEmailAndAttachmentsV3({
-            oppId: this.recordId,
-            emailData: this.emailData,
-            parsedAttachments: this.attachments || [],
-            originalMsgBase64: this.originalMsgBase64
+    
+async createCase() {
+    try {
+        // 1) Clone to remove Proxy wrappers (CRITICAL FIX)
+        const cleanEmail = JSON.parse(JSON.stringify(this.emailData || {}));
+        const cleanAttachments = JSON.parse(JSON.stringify(this.attachments || []));
+        const cleanOriginalMsg = String(this.originalMsgBase64 || '');
+        const cleanOppId = String(this.recordId || '');
+
+        console.log('🚀 CLEAN PAYLOAD BEING SENT TO APEX:', {
+            oppId: cleanOppId,
+            emailData: cleanEmail,
+            parsedAttachments: cleanAttachments,
+            originalMsgBase64: cleanOriginalMsg
         });
+
+        // 2) Apex call (now 100% serializable)
+        await createCaseEmailAndAttachmentsV3({
+            oppId: cleanOppId,
+            emailData: cleanEmail,
+            parsedAttachments: cleanAttachments,
+            originalMsgBase64: cleanOriginalMsg
+        });
+
         this.close('success');
+
+    } catch (e) {
+        console.error('❌ ERROR IN CREATE CASE:', e);
+        const msg = e?.body?.message || e?.message || JSON.stringify(e);
+        this.dispatchEvent(
+            new ShowToastEvent({
+                title: 'Create Case failed',
+                message: msg,
+                variant: 'error'
+            })
+        );
     }
+}
+
 }
