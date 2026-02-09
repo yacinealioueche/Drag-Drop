@@ -1,0 +1,107 @@
+import getSessionId from '@salesforce/apex/SessionController.getSessionId';
+
+export default class MsgUploader extends LightningElement {
+    sessionId;
+
+    connectedCallback() {
+        getSessionId()
+            .then(id => { this.sessionId = id; })
+            .catch(e => { console.error('Failed to get session', e); });
+    }
+    // ... rest of your code
+}
+
+
+/////////////////////////////////////////////////////////
+/**
+ * POST /services/data/v60.0/sobjects/ContentVersion using multipart/form-data.
+ * Creates a ContentVersion and auto-creates the ContentDocument.
+ * FirstPublishLocationId links the file to the EmailMessage (or Case).
+ */
+async uploadFileMultipart({ fileName, mimeType, binaryArrayBuffer, firstPublishLocationId }) {
+    const boundary = '----WebKitFormBoundary' + Date.now();
+    const baseUrl = window.location.origin; // your org domain
+    const url = `${baseUrl}/services/data/v60.0/sobjects/ContentVersion`;
+
+    const entityJson = JSON.stringify({
+        Title: fileName,
+        PathOnClient: fileName,
+        FirstPublishLocationId: firstPublishLocationId
+    });
+
+    const preamble =
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="entity_content"\r\n` +
+        `Content-Type: application/json\r\n\r\n` +
+        `${entityJson}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="VersionData"; filename="${fileName}"\r\n` +
+        `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
+
+    const epilogue = `\r\n--${boundary}--`;
+
+    // Build the multipart body as a Blob to keep memory overhead small.
+    const body = new Blob(
+        [preamble, new Uint8Array(binaryArrayBuffer), epilogue],
+        { type: `multipart/form-data; boundary=${boundary}` }
+    );
+
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + this.sessionId
+            // NOTE: do NOT set Content-Type manually; the Blob sets it with boundary.
+        },
+        body
+    });
+
+    if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Upload failed (${resp.status}): ${text}`);
+    }
+    return resp.json(); // contains Id (ContentVersion Id) and other fields
+}
+
+/**
+ * Link a ContentDocument to another record (EmailMessage, Case, etc.).
+ * Pass the ContentDocumentId returned by /ContentVersion (or by refetch).
+ */
+async createContentDocumentLink({ contentDocumentId, linkedEntityId }) {
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/services/data/v60.0/sobjects/ContentDocumentLink`;
+
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + this.sessionId,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            ContentDocumentId: contentDocumentId,
+            LinkedEntityId: linkedEntityId,
+            ShareType: 'V' // Viewer; use 'I' for Inferred, 'C' for Collaborator
+        })
+    });
+
+    if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`CDL failed (${resp.status}): ${text}`);
+    }
+    return resp.json();
+}
+
+/////////////////
+
+// 1) Upload the original .MSG file (use the same File you read earlier)
+const msgFile = this.template.querySelector('lightning-input[type="file"]').files[0];
+const msgBuffer = await msgFile.arrayBuffer();
+
+const msgUploadResult = await this.uploadFileMultipart({
+    fileName: msgFile.name,
+    mimeType: msgFile.type || 'application/vnd.ms-outlook', // safe fallback
+    binaryArrayBuffer: msgBuffer,
+    firstPublishLocationId: emailId // link directly to the EmailMessage
+});
+
+// If you need the ContentDocumentId:
+const msgContentDocumentId = msgUploadResult.ContentDocumentId || msgUploadResult.contentDocumentId;
