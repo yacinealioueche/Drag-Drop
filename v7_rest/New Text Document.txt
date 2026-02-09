@@ -49,16 +49,42 @@ Replace your old Apex uploadAttachment loop with this:
 ==>
 
 
-if (fileData.attachments && fileData.attachments.length > 0) {
-    for (let i = 0; i < fileData.attachments.length; i++) {
+/**
+ * Replaces old Apex-based uploadAttachment logic.
+ * This version uploads each MSG attachment directly to Salesforce using multipart/form-data.
+ * Supports up to 2 GB because it avoids base64 and avoids Apex heap limits.
+ */
+async uploadAttachmentsSequentially(msgReader, attachments, emailId) {
+    const total = attachments.length;
 
-        const attMeta = fileData.attachments[i];
+    for (let i = 0; i < total; i++) {
+
+        const attMeta = attachments[i];
         const attObj = msgReader.getAttachment(i);
 
-        if (!attObj || !attObj.content) continue;
+        const currentNum = i + 1;
+        this.progress = 30 + Math.floor((currentNum / total) * 60);
+        this.statusText = `Uploading attachment ${currentNum} of ${total}: ${attMeta.fileName || 'Untitled'}`;
 
-        // Convert MSG reader attachment to a Blob-compatible File object
+        // Skip attachments with no content
+        if (!attObj || !attObj.content) {
+            console.warn(`Skipping empty attachment at index ${i}`);
+            continue;
+        }
+
+        // Convert MSG attachment buffer into a real File object (binary-safe)
         const fileName = attMeta.fileName || `attachment_${i}`;
-        const mimeType = attMeta.contentType || 'application/octet-stream';
-        const blob = new Blob([attObj.content], { type: mimeType });
-        const file = new File([blob],
+        const mimeType = attMeta.contentType || "application/octet-stream";
+
+        // attObj.content may be a Uint8Array — normalize to ArrayBuffer
+        const arrayBuffer = attObj.content.buffer
+            ? attObj.content.buffer
+            : attObj.content;
+
+        const blob = new Blob([arrayBuffer], { type: mimeType });
+        const file = new File([blob], fileName, { type: mimeType });
+
+        // Upload via REST multipart/form-data (2 GB support)
+        await this.uploadAsContentVersion(file, emailId);
+    }
+}
