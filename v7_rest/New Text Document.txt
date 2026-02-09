@@ -104,4 +104,8 @@ const msgUploadResult = await this.uploadFileMultipart({
 });
 
 // If you need the ContentDocumentId:
+
 const msgContentDocumentId = msgUploadResult.ContentDocumentId || msgUploadResult.contentDocumentId;
+
+////////////////
+Upload failed (400): <html> <head> <meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/> <title>Error 400 Buffer size exceeded: no line terminator</title> </head> <body><h2>HTTP ERROR 400 Buffer size exceeded: no line terminator</h2> <table> <tr><th>URI:</th><td>/services/data/v60.0/sobjects/ContentVersion</td></tr> <tr><th>STATUS:</th><td>400</td></tr> <tr><th>MESSAGE:</th><td>Buffer size exceeded: no line terminator</td></tr> <tr><th>SERVLET:</th><td>SfdcRestServlet-X</td></tr> </table> </body> </html>
