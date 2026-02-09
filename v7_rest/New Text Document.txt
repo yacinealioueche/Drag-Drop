@@ -1,103 +1,64 @@
-import getSessionId from '@salesforce/apex/SessionController.getSessionId';
-
-export default class MsgUploader extends LightningElement {
-    sessionId;
-
-    connectedCallback() {
-        getSessionId()
-            .then(id => { this.sessionId = id; })
-            .catch(e => { console.error('Failed to get session', e); });
-    }
-    // ... rest of your code
-}
-
-
-/////////////////////////////////////////////////////////
-async uploadFileMultipart({ fileName, mimeType, binaryArrayBuffer, firstPublishLocationId }) {
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/services/data/v60.0/sobjects/ContentVersion`;
-
-    const form = new FormData();
-
-    // Part 1: JSON entity metadata
+/**
+ * Upload a file directly to Salesforce as ContentVersion using multipart/form-data.
+ * Supports files up to 2 GB because it uses binary streaming (no base64, no Apex).
+ */
+async uploadAsContentVersion(file, firstPublishLocationId) {
     const entity = {
-        Title: fileName,
-        PathOnClient: fileName,
+        Title: file.name,
+        PathOnClient: file.name,
         FirstPublishLocationId: firstPublishLocationId
     };
+
+    const form = new FormData();
+    
+    // JSON metadata part
     form.append(
-        "entity_content",
-        new Blob([JSON.stringify(entity)], { type: "application/json" })
+        'entity_content',
+        new Blob([JSON.stringify(entity)], { type: 'application/json' })
     );
 
-    // Part 2: Binary file
-    form.append(
-        "VersionData",
-        new Blob([binaryArrayBuffer], { type: mimeType || "application/octet-stream" }),
-        fileName
-    );
+    // Binary file part (IMPORTANT: no base64, no encoding)
+    form.append('VersionData', file, file.name);
 
-    const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": "Bearer " + this.sessionId
-            // ❗ DO NOT set Content-Type. Browser sets the correct boundary.
-        },
-        body: form
-    });
-
-    if (!resp.ok) {
-        throw new Error(`Upload failed (${resp.status}): ${await resp.text()}`);
-    }
-    return resp.json();
-}
-
-
-/**
- * Link a ContentDocument to another record (EmailMessage, Case, etc.).
- * Pass the ContentDocumentId returned by /ContentVersion (or by refetch).
- */
-async createContentDocumentLink({ contentDocumentId, linkedEntityId }) {
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/services/data/v60.0/sobjects/ContentDocumentLink`;
-
-    const resp = await fetch(url, {
+    // Use relative URL so Salesforce session cookies are automatically included
+    const res = await fetch('/services/data/v66.0/sobjects/ContentVersion', {
         method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + this.sessionId,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            ContentDocumentId: contentDocumentId,
-            LinkedEntityId: linkedEntityId,
-            ShareType: 'V' // Viewer; use 'I' for Inferred, 'C' for Collaborator
-        })
+        body: form
+        // DO NOT set Content-Type. FormData sets the multipart boundary for us.
+        // DO NOT set Authorization header. Browser cookies authenticate the call.
     });
 
-    if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`CDL failed (${resp.status}): ${text}`);
+    if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Upload failed:', errorText);
+        throw new Error(errorText);
     }
-    return resp.json();
+
+    return res.json();   // Contains { id, success, errors } and ContentDocumentId sub-object
 }
 
-/////////////////
+////////////
 
-// 1) Upload the original .MSG file (use the same File you read earlier)
+// Upload original .MSG file
 const msgFile = this.template.querySelector('lightning-input[type="file"]').files[0];
-const msgBuffer = await msgFile.arrayBuffer();
+await this.uploadAsContentVersion(msgFile, emailId);
 
-const msgUploadResult = await this.uploadFileMultipart({
-    fileName: msgFile.name,
-    mimeType: msgFile.type || 'application/vnd.ms-outlook', // safe fallback
-    binaryArrayBuffer: msgBuffer,
-    firstPublishLocationId: emailId // link directly to the EmailMessage
-});
+//////////////
 
-// If you need the ContentDocumentId:
+Replace your old Apex uploadAttachment loop with this:
+==>
 
-const msgContentDocumentId = msgUploadResult.ContentDocumentId || msgUploadResult.contentDocumentId;
 
-////////////////
-Upload failed (400): <html> <head> <meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/> <title>Error 400 Buffer size exceeded: no line terminator</title> </head> <body><h2>HTTP ERROR 400 Buffer size exceeded: no line terminator</h2> <table> <tr><th>URI:</th><td>/services/data/v60.0/sobjects/ContentVersion</td></tr> <tr><th>STATUS:</th><td>400</td></tr> <tr><th>MESSAGE:</th><td>Buffer size exceeded: no line terminator</td></tr> <tr><th>SERVLET:</th><td>SfdcRestServlet-X</td></tr> </table> </body> </html>
+if (fileData.attachments && fileData.attachments.length > 0) {
+    for (let i = 0; i < fileData.attachments.length; i++) {
 
+        const attMeta = fileData.attachments[i];
+        const attObj = msgReader.getAttachment(i);
+
+        if (!attObj || !attObj.content) continue;
+
+        // Convert MSG reader attachment to a Blob-compatible File object
+        const fileName = attMeta.fileName || `attachment_${i}`;
+        const mimeType = attMeta.contentType || 'application/octet-stream';
+        const blob = new Blob([attObj.content], { type: mimeType });
+        const file = new File([blob],
