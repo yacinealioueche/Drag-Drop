@@ -13,54 +13,45 @@ export default class MsgUploader extends LightningElement {
 
 
 /////////////////////////////////////////////////////////
-/**
- * POST /services/data/v60.0/sobjects/ContentVersion using multipart/form-data.
- * Creates a ContentVersion and auto-creates the ContentDocument.
- * FirstPublishLocationId links the file to the EmailMessage (or Case).
- */
 async uploadFileMultipart({ fileName, mimeType, binaryArrayBuffer, firstPublishLocationId }) {
-    const boundary = '----WebKitFormBoundary' + Date.now();
-    const baseUrl = window.location.origin; // your org domain
+    const baseUrl = window.location.origin;
     const url = `${baseUrl}/services/data/v60.0/sobjects/ContentVersion`;
 
-    const entityJson = JSON.stringify({
+    const form = new FormData();
+
+    // Part 1: JSON entity metadata
+    const entity = {
         Title: fileName,
         PathOnClient: fileName,
         FirstPublishLocationId: firstPublishLocationId
-    });
+    };
+    form.append(
+        "entity_content",
+        new Blob([JSON.stringify(entity)], { type: "application/json" })
+    );
 
-    const preamble =
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="entity_content"\r\n` +
-        `Content-Type: application/json\r\n\r\n` +
-        `${entityJson}\r\n` +
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="VersionData"; filename="${fileName}"\r\n` +
-        `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
-
-    const epilogue = `\r\n--${boundary}--`;
-
-    // Build the multipart body as a Blob to keep memory overhead small.
-    const body = new Blob(
-        [preamble, new Uint8Array(binaryArrayBuffer), epilogue],
-        { type: `multipart/form-data; boundary=${boundary}` }
+    // Part 2: Binary file
+    form.append(
+        "VersionData",
+        new Blob([binaryArrayBuffer], { type: mimeType || "application/octet-stream" }),
+        fileName
     );
 
     const resp = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-            'Authorization': 'Bearer ' + this.sessionId
-            // NOTE: do NOT set Content-Type manually; the Blob sets it with boundary.
+            "Authorization": "Bearer " + this.sessionId
+            // ❗ DO NOT set Content-Type. Browser sets the correct boundary.
         },
-        body
+        body: form
     });
 
     if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`Upload failed (${resp.status}): ${text}`);
+        throw new Error(`Upload failed (${resp.status}): ${await resp.text()}`);
     }
-    return resp.json(); // contains Id (ContentVersion Id) and other fields
+    return resp.json();
 }
+
 
 /**
  * Link a ContentDocument to another record (EmailMessage, Case, etc.).
@@ -109,3 +100,4 @@ const msgContentDocumentId = msgUploadResult.ContentDocumentId || msgUploadResul
 
 ////////////////
 Upload failed (400): <html> <head> <meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/> <title>Error 400 Buffer size exceeded: no line terminator</title> </head> <body><h2>HTTP ERROR 400 Buffer size exceeded: no line terminator</h2> <table> <tr><th>URI:</th><td>/services/data/v60.0/sobjects/ContentVersion</td></tr> <tr><th>STATUS:</th><td>400</td></tr> <tr><th>MESSAGE:</th><td>Buffer size exceeded: no line terminator</td></tr> <tr><th>SERVLET:</th><td>SfdcRestServlet-X</td></tr> </table> </body> </html>
+
