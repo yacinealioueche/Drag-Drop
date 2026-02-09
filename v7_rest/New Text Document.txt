@@ -88,3 +88,287 @@ async uploadAttachmentsSequentially(msgReader, attachments, emailId) {
         await this.uploadAsContentVersion(file, emailId);
     }
 }
+
+////////
+
+https://axaxl--comqa.sandbox.lightning.force.com/lightning/r/Opportunity/006WG00000j0KeNYAU/view
+the 3 call I got
+https://axaxl--comqa.sandbox.lightning.force.com/services/data/v66.0/sobjects/ContentVersion => 302
+Request URL
+https://axaxl--comqa.sandbox.lightning.force.com/services/data/v66.0/sobjects/ContentVersion
+Request Method
+POST
+Status Code
+302 Found
+Remote Address
+10.81.194.12:8080
+Referrer Policy
+strict-origin-when-cross-origin
+cache-control
+private
+content-length
+0
+content-security-policy
+upgrade-insecure-requests
+date
+Mon, 09 Feb 2026 12:48:31 GMT
+location
+https://axaxl--comqa.sandbox.my.salesforce.com/services/data/v66.0/sobjects/ContentVersion
+origin-trial
+AkBgNlDiY3u6JLOlyCHNo+uI//ZsQNGdALGkaqj2TaJPsaytJKhRW2ej+qKdkIs3auzeCWPCYX2AE/jVxzJS0AwAAABaeyJvcmlnaW4iOiJodHRwczovL2ZvcmNlLmNvbTo0NDMiLCJmZWF0dXJlIjoiVHBjZCIsImV4cGlyeSI6MTczNTM0Mzk5OSwiaXNTdWJkb21haW4iOnRydWV9
+referrer-policy
+strict-origin-when-cross-origin
+server
+sfdcedge
+strict-transport-security
+max-age=63072000; includeSubDomains
+vary
+Accept-Encoding
+x-content-type-options
+nosniff
+x-request-id
+fbb8fcdaf0b339fd48e34808979dd0d9
+x-robots-tag
+none
+x-sfdc-request-id
+fbb8fcdaf0b339fd48e34808979dd0d9
+:authority
+axaxl--comqa.sandbox.lightning.force.com
+:method
+POST
+:path
+/services/data/v66.0/sobjects/ContentVersion
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+cache-control
+no-cache
+content-length
+596095
+content-type
+multipart/form-data; boundary=----WebKitFormBoundaryjBD2jzu0cNvMYg6D
+cookie
+BrowserId=NwM6sq5fEfC3xRXJPfvtZA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1; inst=APP_WG; sid= I hide it ; sid_Client= I hide it; clientSrc=171.18.128.143; 79eb100099b9a8bf=3:false:.sandbox.lightning.force.com; SetupDomainProbePassed=true; flexipageLMTXLP_OpportunityPipelineLightningRecordPage=1770631070000; flexipageLMTCase_Record_Page=1770308197000; flexipagesSaved=XLP_OpportunityPipelineLightningRecordPage%25clone%26edit%26EditPreview%26Print%26PrintPreview; flexipageLMTXLP_InsuredAccountRecordPage=1770186105000
+origin
+https://axaxl--comqa.sandbox.lightning.force.com
+pragma
+no-cache
+priority
+u=1, i
+referer
+https://axaxl--comqa.sandbox.lightning.force.com/lightning/r/Opportunity/006WG00000j0KeNYAU/view
+sec-ch-ua
+"Not(A:Brand";v="8", "Chromium";v="144", "Microsoft Edge";v="144"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
+x-b3-sampled
+0
+x-b3-spanid
+1012f147f2f175e8
+x-b3-traceid
+4bbd75bdefad44d4
+
+
+https://axaxl--comqa.sandbox.my.salesforce.com/services/data/v66.0/sobjects/ContentVersion => 401
+
+Request URL
+https://axaxl--comqa.sandbox.my.salesforce.com/services/data/v66.0/sobjects/ContentVersion
+Request Method
+GET
+Status Code
+401 Unauthorized
+Remote Address
+10.81.194.12:8080
+Referrer Policy
+strict-origin-when-cross-origin
+access-control-allow-credentials
+false
+access-control-allow-methods
+HEAD, GET, POST, PUT, PATCH, DELETE
+access-control-allow-origin
+https://axaxl--comqa.sandbox.lightning.force.com
+cache-control
+no-cache,must-revalidate,max-age=0,no-store,private
+content-type
+application/json;charset=UTF-8
+date
+Mon, 09 Feb 2026 12:48:31 GMT
+origin-trial
+AqlAE64ET63tVSana3qdVkfkPAgyUhY8GwcehUlpqv067CevOpumeNUlx9YouLkBxJ0CT+EwIb8/SiNbF2NGvwYAAABfeyJvcmlnaW4iOiJodHRwczovL3NhbGVzZm9yY2UuY29tOjQ0MyIsImZlYXR1cmUiOiJUcGNkIiwiZXhwaXJ5IjoxNzM1MzQzOTk5LCJpc1N1YmRvbWFpbiI6dHJ1ZX0=
+referrer-policy
+strict-origin-when-cross-origin
+server
+sfdcedge
+set-cookie
+CookieConsentPolicy=0:1; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+set-cookie
+LSKey-c$CookieConsentPolicy=0:1; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+set-cookie
+BrowserId=o7eKCAW1EfGjKpXIwR07Ig; domain=.salesforce.com; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+strict-transport-security
+max-age=63072000; includeSubDomains
+vary
+Accept-Encoding
+www-authenticate
+Token
+x-content-type-options
+nosniff
+x-edge-authenticated-org
+false
+x-edge-shared-cache-get-time
+10
+x-edge-sharedcache-miss-reason
+31
+x-request-id
+3ec62c0d1a140fa7dc95764af83b80c3
+x-robots-tag
+none
+x-sfdc-request-id
+3ec62c0d1a140fa7dc95764af83b80c3
+:authority
+axaxl--comqa.sandbox.my.salesforce.com
+:method
+GET
+:path
+/services/data/v66.0/sobjects/ContentVersion
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+cache-control
+no-cache
+origin
+https://axaxl--comqa.sandbox.lightning.force.com
+pragma
+no-cache
+priority
+u=1, i
+referer
+https://axaxl--comqa.sandbox.lightning.force.com/
+sec-ch-ua
+"Not(A:Brand";v="8", "Chromium";v="144", "Microsoft Edge";v="144"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+cross-site
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
+x-b3-sampled
+0
+x-b3-spanid
+1012f147f2f175e8
+x-b3-traceid
+4bbd75bdefad44d4
+
+https://axaxl--comqa.sandbox.my.salesforce.com/services/data/v66.0/sobjects/ContentVersion => 200
+
+Request URL
+https://axaxl--comqa.sandbox.my.salesforce.com/services/data/v66.0/sobjects/ContentVersion
+Request Method
+OPTIONS
+Status Code
+200 OK
+Remote Address
+10.81.194.12:8080
+Referrer Policy
+strict-origin-when-cross-origin
+access-control-allow-credentials
+false
+access-control-allow-headers
+X-SFDC-Request-Id,x-b3-sampled,x-b3-spanid,x-b3-traceid
+access-control-allow-methods
+HEAD, GET, POST, PUT, PATCH, DELETE
+access-control-allow-origin
+https://axaxl--comqa.sandbox.lightning.force.com
+cache-control
+no-cache,must-revalidate,max-age=0,no-store,private
+content-security-policy
+upgrade-insecure-requests
+date
+Mon, 09 Feb 2026 12:48:31 GMT
+origin-trial
+AqlAE64ET63tVSana3qdVkfkPAgyUhY8GwcehUlpqv067CevOpumeNUlx9YouLkBxJ0CT+EwIb8/SiNbF2NGvwYAAABfeyJvcmlnaW4iOiJodHRwczovL3NhbGVzZm9yY2UuY29tOjQ0MyIsImZlYXR1cmUiOiJUcGNkIiwiZXhwaXJ5IjoxNzM1MzQzOTk5LCJpc1N1YmRvbWFpbiI6dHJ1ZX0=
+referrer-policy
+strict-origin-when-cross-origin
+server
+sfdcedge
+set-cookie
+CookieConsentPolicy=0:1; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+set-cookie
+LSKey-c$CookieConsentPolicy=0:1; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+set-cookie
+BrowserId=o575MAW1EfG7x78xYI8YiQ; domain=.salesforce.com; path=/; expires=Tue, 09-Feb-2027 12:48:31 GMT; Max-Age=31536000; secure; SameSite=None
+strict-transport-security
+max-age=63072000; includeSubDomains
+x-content-type-options
+nosniff
+x-request-id
+93b5655aa1e3f93e624c8cfbb59fbd03
+x-robots-tag
+none
+x-sfdc-request-id
+93b5655aa1e3f93e624c8cfbb59fbd03
+:authority
+axaxl--comqa.sandbox.my.salesforce.com
+:method
+OPTIONS
+:path
+/services/data/v66.0/sobjects/ContentVersion
+:scheme
+https
+accept
+*/*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+access-control-request-headers
+x-b3-sampled,x-b3-spanid,x-b3-traceid
+access-control-request-method
+GET
+cache-control
+no-cache
+origin
+https://axaxl--comqa.sandbox.lightning.force.com
+pragma
+no-cache
+priority
+u=1, i
+referer
+https://axaxl--comqa.sandbox.lightning.force.com/
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+cross-site
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
+
+
+
