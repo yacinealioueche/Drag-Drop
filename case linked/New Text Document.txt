@@ -1,0 +1,95 @@
+import { LightningElement, api, wire } from 'lwc';
+import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
+import CASE_FIELD from '@salesforce/schema/Opportunity.Case__c';
+import CASE_NAME from '@salesforce/schema/Case.CaseNumber';   // Or Case.Subject
+
+export default class OpportunityCaseDisplay extends LightningElement {
+    @api recordId;
+
+    @wire(getRecord, {
+        recordId: '$recordId',
+        fields: [CASE_FIELD]
+    })
+    opportunity;
+
+    @wire(getRecord, {
+        recordId: '$caseId',
+        fields: [CASE_NAME]
+    })
+    caseRecord;
+
+    get caseId() {
+        return getFieldValue(this.opportunity.data, CASE_FIELD);
+    }
+
+    get caseName() {
+        return getFieldValue(this.caseRecord.data, CASE_NAME);
+    }
+
+    get hasCase() {
+        return this.caseId !== undefined && this.caseId !== null;
+    }
+
+    get caseUrl() {
+        return '/' + this.caseId;
+    }
+}
+
+
+////////////
+
+<template>
+    <template if:true={hasCase}>
+        <div class="case-container">
+            <lightning-icon 
+                icon-name="standard:case" 
+                size="medium"
+                class="case-icon">
+            </lightning-icon>
+
+            <a href={caseUrl} target="_blank" class="case-link">
+                {caseName}
+            </a>
+        </div>
+    </template>
+
+    <template if:false={hasCase}>
+        <p>No related Case found on this Opportunity.</p>
+    </template>
+</template>
+
+////////////////
+
+.case-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.case-link {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #0070d2;
+    text-decoration: none;
+}
+
+.case-link:hover {
+    text-decoration: underline;
+}
+
+
+////////////////
+
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <object>Opportunity</object>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>
