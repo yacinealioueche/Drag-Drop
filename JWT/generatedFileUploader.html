@@ -1,0 +1,76 @@
+<template>
+    <lightning-card title="Generated File Upload via REST API" icon-name="doctype:attachment">
+        <div class="slds-p-around_medium">
+            <lightning-input
+                label="Title"
+                value={title}
+                onchange={handleTitleChange}>
+            </lightning-input>
+
+            <lightning-input
+                class="slds-m-top_small"
+                label="File Name"
+                value={fileName}
+                onchange={handleFileNameChange}>
+            </lightning-input>
+
+            <lightning-input
+                class="slds-m-top_small"
+                label="MIME Type"
+                value={mimeType}
+                onchange={handleMimeTypeChange}>
+            </lightning-input>
+
+            <lightning-textarea
+                class="slds-m-top_small"
+                label="Generated File Content"
+                value={fileBody}
+                onchange={handleFileBodyChange}
+                rows="10">
+            </lightning-textarea>
+
+            <template if:true={recordId}>
+                <div class="slds-m-top_small slds-text-color_weak">
+                    This component is on a record page. The upload will use this record as
+                    <code>FirstPublishLocationId</code>.
+                </div>
+            </template>
+
+            <div class="slds-m-top_medium">
+                <lightning-button
+                    label="Upload Generated File"
+                    variant="brand"
+                    onclick={handleUpload}
+                    disabled={isUploading}>
+                </lightning-button>
+            </div>
+
+            <template if:true={isUploading}>
+                <div class="slds-m-top_medium">
+                    <lightning-spinner
+                        alternative-text="Uploading"
+                        size="small">
+                    </lightning-spinner>
+                </div>
+            </template>
+
+            <template if:true={uploadResult}>
+                <div class="slds-m-top_medium slds-box slds-theme_default">
+                    <p><strong>ContentVersion Id:</strong> {uploadResult.id}</p>
+                    <template if:true={uploadResult.success}>
+                        <p class="slds-text-color_success">Upload succeeded.</p>
+                    </template>
+                    <template if:false={uploadResult.success}>
+                        <p class="slds-text-color_error">Upload failed.</p>
+                    </template>
+                </div>
+            </template>
+
+            <template if:true={errorMessage}>
+                <div class="slds-m-top_medium slds-text-color_error">
+                    {errorMessage}
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
