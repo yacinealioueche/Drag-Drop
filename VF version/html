@@ -1,0 +1,72 @@
+<template>
+    <lightning-card title="Email Attachment Uploader (OAuth Popup)" icon-name="doctype:attachment">
+        <div class="slds-p-around_medium">
+            
+            <!-- Drag and Drop Zone -->
+            <div 
+                class="slds-box slds-box_x-small slds-text-align_center drop-zone"
+                class:is-drag-over={isDragOver}
+                ondragover={handleDragOver}
+                ondragleave={handleDragLeave}
+                ondrop={handleDrop}>
+                <lightning-icon icon-name="utility:upload" size="large"></lightning-icon>
+                <p class="slds-m-top_small">Drag and drop email files here</p>
+                <p class="slds-text-color_weak slds-text-body_small">For POC: any file type works</p>
+            </div>
+
+            <!-- File List -->
+            <template if:true={files.length}>
+                <div class="slds-m-top_medium">
+                    <p><strong>Files to upload:</strong></p>
+                    <ul>
+                        <template for:each={files} for:item="file">
+                            <li key={file.name}>{file.name} ({file.size} bytes)</li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <!-- Auth Status -->
+            <div class="slds-m-top_small">
+                <template if:true={accessToken}>
+                    <span class="slds-text-color_success">✅ Authenticated</span>
+                </template>
+                <template if:false={accessToken}>
+                    <span class="slds-text-color_weak">⏳ Authentication required on upload</span>
+                </template>
+            </div>
+
+            <!-- Upload Button -->
+            <div class="slds-m-top_medium">
+                <lightning-button
+                    label="Upload Files"
+                    variant="brand"
+                    onclick={handleUpload}
+                    disabled={isUploading}>
+                </lightning-button>
+            </div>
+
+            <!-- Loading -->
+            <template if:true={isUploading}>
+                <div class="slds-m-top_medium">
+                    <lightning-spinner alternative-text="Uploading" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <!-- Results -->
+            <template if:true={uploadResult}>
+                <div class="slds-m-top_medium slds-box slds-theme_default">
+                    <p class="slds-text-color_success">✅ Upload complete!</p>
+                </div>
+            </template>
+
+            <!-- Error -->
+            <template if:true={errorMessage}>
+                <div class="slds-m-top_medium slds-text-color_error">
+                    {errorMessage}
+                </div>
+            </template>
+
+        </div>
+    </lightning-card>
+</template>
