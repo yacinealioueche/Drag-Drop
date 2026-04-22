@@ -1,0 +1,14 @@
+/* emailAttachmentUploader.css */
+.drop-zone {
+    border: 2px dashed #dddbda;
+    border-radius: 4px;
+    padding: 2rem;
+    transition: all 0.2s;
+    background-color: #fafaf9;
+}
+
+.drop-zone:hover,
+.drop-zone.is-drag-over {
+    border-color: #1589ee;
+    background-color: #f3f9ff;
+}
