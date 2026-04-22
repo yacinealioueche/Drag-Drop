@@ -1,0 +1,66 @@
+<!-- OAuthCallbackHandler.page -->
+<apex:page controller="OAuthCallbackController" showHeader="false" sidebar="false" standardStylesheets="false">
+    <html>
+    <head>
+        <title>OAuth Callback</title>
+        <script>
+            // Parse URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            
+            if (error) {
+                window.opener.postMessage({
+                    type: 'OAUTH_ERROR',
+                    error: error,
+                    errorDescription: errorDescription
+                }, '*');
+                window.close();
+            } else if (code) {
+                // Send code back to parent LWC
+                window.opener.postMessage({
+                    type: 'OAUTH_CODE',
+                    code: code,
+                    state: state
+                }, '*');
+                
+                // Exchange code for token via Apex
+                exchangeCodeForToken(code);
+            }
+            
+            function exchangeCodeForToken(authCode) {
+                Visualforce.remoting.Manager.invokeAction(
+                    '{!$RemoteAction.OAuthCallbackController.exchangeCode}',
+                    authCode,
+                    function(result, event) {
+                        if (event.status) {
+                            window.opener.postMessage({
+                                type: 'OAUTH_TOKEN',
+                                accessToken: result.accessToken,
+                                refreshToken: result.refreshToken,
+                                instanceUrl: result.instanceUrl,
+                                tokenType: result.tokenType
+                            }, '*');
+                        } else {
+                            window.opener.postMessage({
+                                type: 'OAUTH_ERROR',
+                                error: 'Token exchange failed',
+                                errorDescription: event.message
+                            }, '*');
+                        }
+                        window.close();
+                    }
+                );
+            }
+        </script>
+    </head>
+    <body>
+        <div style="text-align: center; padding: 50px; font-family: Arial;">
+            <p>Processing authentication...</p>
+            <apex:messages />
+        </div>
+    </body>
+    </html>
+</apex:page>
