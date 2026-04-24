@@ -1,0 +1,24 @@
+// Extract attachments (name + base64)
+            const parsedAttachments = [];
+            const atts = fileData.attachments || [];
+            for (let i = 0; i < atts.length; i++) {
+                const attObj = msgReader.getAttachment(i);
+                if (attObj && attObj.content) {
+                    let base64 = this.uint8ToBase64(attObj.content);
+                    let fileSize = this.base64FileSize(base64);
+                    console.log('fileSize:', fileSize, 'bigger than ' + 3*1024*1024, fileSize <= 3*1024*1024);
+                    parsedAttachments.push({
+                        id: `file-${i}`,
+                        fileName: attObj.fileName || `attachment_${i}`,
+                        extension: this.getFileExtension(attObj.fileName),
+                        base64: base64,
+                        save: fileSize <= 3*1024*1024,
+                        byteSize: fileSize
+                    });
+                }
+
+
+////
+
+this.emailAttachments
+
