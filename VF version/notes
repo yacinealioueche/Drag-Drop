@@ -1,24 +1,368 @@
-// Extract attachments (name + base64)
-            const parsedAttachments = [];
-            const atts = fileData.attachments || [];
-            for (let i = 0; i < atts.length; i++) {
-                const attObj = msgReader.getAttachment(i);
-                if (attObj && attObj.content) {
-                    let base64 = this.uint8ToBase64(attObj.content);
-                    let fileSize = this.base64FileSize(base64);
-                    console.log('fileSize:', fileSize, 'bigger than ' + 3*1024*1024, fileSize <= 3*1024*1024);
-                    parsedAttachments.push({
-                        id: `file-${i}`,
-                        fileName: attObj.fileName || `attachment_${i}`,
-                        extension: this.getFileExtension(attObj.fileName),
-                        base64: base64,
-                        save: fileSize <= 3*1024*1024,
-                        byteSize: fileSize
-                    });
-                }
+JS 
+
+// 1. Add these imports
+import exchangeCodeForToken from '@salesforce/apex/OAuthCallbackController.exchangeCode';
+
+// 2. Add these constants
+const API_VERSION = 'v66.0';
+const OAUTH_AUTHORIZE_URL = 'https://axaxl--xlpdev.sandbox.my.salesforce.com/services/oauth2/authorize';
+const CLIENT_ID = 'YOUR_KEY';
+const REDIRECT_URI = 'https://axaxl--xlpdev.sandbox.my.salesforce.com/apex/OAuthCallbackHandler';
+
+// 3. Add these properties to your class
+accessToken = null;
+instanceUrl = null;
+tokenExpiry = null;
+
+// 4. Add connectedCallback/disconnectedCallback for message listener
+
+// 5. Add these methods (copy from above):
+// - uploadEmailAttachments()
+// - processUploadQueue()
+// - uploadSingleAttachment()
+// - startOAuthFlow()
+// - handleOAuthMessage()
+// - base64ToBlob()
+// - getMimeType()
+// - escapeHeader()
+// - generateState()
+// - isTokenExpired()
+
+==>
+import { LightningElement, api, track } from 'lwc';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import exchangeCodeForToken from '@salesforce/apex/OAuthCallbackController.exchangeCode';
+
+const API_VERSION = 'v66.0';
+const OAUTH_AUTHORIZE_URL = 'https://axaxl--xlpdev.sandbox.my.salesforce.com/services/oauth2/authorize';
+const CLIENT_ID = 'YOUR_EXTERNAL_CLIENT_APP_CONSUMER_KEY';
+const REDIRECT_URI = 'https://axaxl--xlpdev.sandbox.my.salesforce.com/apex/OAuthCallbackHandler';
+
+export default class EmailAttachmentUploader extends LightningElement {
+    @api recordId;
+
+    // Your existing data
+    @track emailAttachments = [];
+    @track isUploading = false;
+    @track uploadProgress = 0;
+    @track totalAttachments = 0;
+    @track uploadedCount = 0;
+    
+    // OAuth state
+    accessToken = null;
+    instanceUrl = null;
+    tokenExpiry = null;
+    pendingAttachments = []; // Queue for upload after OAuth
+
+    connectedCallback() {
+        window.addEventListener('message', this.handleOAuthMessage.bind(this));
+    }
+
+    disconnectedCallback() {
+        window.removeEventListener('message', this.handleOAuthMessage.bind(this));
+    }
+
+    // ============================================================
+    // YOUR EXISTING PARSER CODE (unchanged)
+    // ============================================================
+
+    parseEmailFile(file) {
+        // Your existing parsing logic...
+        // After parsing, you set:
+        // this.emailAttachments = parsedAttachments;
+        
+        // After this line, add:
+        // this.prepareAttachmentsForUpload();
+    }
+
+    uint8ToBase64(uint8Array) {
+        // Your existing method
+        let binary = '';
+        const len = uint8Array.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(uint8Array[i]);
+        }
+        return btoa(binary);
+    }
+
+    base64FileSize(base64String) {
+        // Your existing method
+        const padding = (base64String.match(/=/g) || []).length;
+        return (base64String.length * 3 / 4) - padding;
+    }
+
+    getFileExtension(fileName) {
+        return fileName ? fileName.substring(fileName.lastIndexOf('.')) : '';
+    }
+
+    // ============================================================
+    // NEW: UPLOAD INTEGRATION
+    // ============================================================
+
+    /**
+     * @description Call this after this.emailAttachments is populated
+     *              This is the entry point to start OAuth + upload flow
+     */
+    async uploadEmailAttachments() {
+        if (!this.emailAttachments || this.emailAttachments.length === 0) {
+            this.showToast('Warning', 'No attachments to upload', 'warning');
+            return;
+        }
+
+        // Filter only attachments marked for upload (save: true)
+        const attachmentsToUpload = this.emailAttachments.filter(att => att.save);
+        
+        if (attachmentsToUpload.length === 0) {
+            this.showToast('Warning', 'No attachments marked for upload (all > 3MB)', 'warning');
+            return;
+        }
+
+        this.totalAttachments = attachmentsToUpload.length;
+        this.uploadedCount = 0;
+        this.uploadProgress = 0;
+        this.pendingAttachments = attachmentsToUpload;
+
+        // Check if we need OAuth
+        if (!this.accessToken || this.isTokenExpired()) {
+            this.startOAuthFlow(attachmentsToUpload);
+            return;
+        }
+
+        // We have token, upload directly
+        await this.processUploadQueue();
+    }
+
+    /**
+     * @description Upload all pending attachments with current token
+     */
+    async processUploadQueue() {
+        this.isUploading = true;
+
+        try {
+            for (const attachment of this.pendingAttachments) {
+                if (attachment.uploadStatus === 'completed') continue;
+                
+                await this.uploadSingleAttachment(attachment);
+                this.uploadedCount++;
+                this.uploadProgress = Math.round((this.uploadedCount / this.totalAttachments) * 100);
+            }
+
+            const successCount = this.pendingAttachments.filter(a => a.uploadStatus === 'completed').length;
+            this.showToast('Success', `Uploaded ${successCount}/${this.totalAttachments} attachment(s)`, 'success');
+
+        } catch (error) {
+            this.showToast('Upload Failed', error.message, 'error');
+        } finally {
+            this.isUploading = false;
+            this.pendingAttachments = [];
+        }
+    }
+
+    /**
+     * @description Upload a single attachment via REST API
+     */
+    async uploadSingleAttachment(attachment) {
+        attachment.uploadStatus = 'uploading';
+        
+        try {
+            // Convert base64 to Blob
+            const blob = this.base64ToBlob(attachment.base64, this.getMimeType(attachment.extension));
+            
+            // Build multipart request
+            const boundary = '----sfboundary' + Date.now();
+            const endpoint = `${this.instanceUrl}/services/data/${API_VERSION}/sobjects/ContentVersion`;
+            
+            const entityContent = {
+                Title: attachment.fileName,
+                PathOnClient: attachment.fileName,
+                ContentLocation: 'S'
+            };
+
+            if (this.recordId) {
+                entityContent.FirstPublishLocationId = this.recordId;
+            }
+
+            // Build multipart body parts
+            const metadataPart = 
+                `--${boundary}\r\n` +
+                `Content-Disposition: form-data; name="entity_content"\r\n` +
+                `Content-Type: application/json\r\n\r\n` +
+                `${JSON.stringify(entityContent)}\r\n`;
+
+            const fileHeaderPart = 
+                `--${boundary}\r\n` +
+                `Content-Disposition: form-data; name="VersionData"; filename="${this.escapeHeader(attachment.fileName)}"\r\n` +
+                `Content-Type: ${this.getMimeType(attachment.extension)}\r\n\r\n`;
+
+            const closingPart = `\r\n--${boundary}--`;
+
+            // Combine into Blob
+            const requestBody = new Blob([
+                metadataPart,
+                fileHeaderPart,
+                blob,
+                closingPart
+            ], { type: `multipart/form-data; boundary=${boundary}` });
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${this.accessToken}`,
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`
+                },
+                body: requestBody
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const result = await response.json();
+            attachment.uploadStatus = 'completed';
+            attachment.contentVersionId = result.id;
+            
+            console.log('Uploaded:', attachment.fileName, '→', result.id);
+
+        } catch (error) {
+            attachment.uploadStatus = 'failed';
+            attachment.errorMessage = error.message;
+            console.error('Upload failed for', attachment.fileName, error);
+            throw error; // Re-throw to stop batch or handle per your needs
+        }
+    }
+
+    // ============================================================
+    // OAUTH FLOW (from POC)
+    // ============================================================
+
+    startOAuthFlow(attachmentsToUpload) {
+        const state = this.generateState();
+        sessionStorage.setItem('oauth_state', state);
+        sessionStorage.setItem('pending_attachments_meta', JSON.stringify(
+            attachmentsToUpload.map(a => ({ id: a.id, fileName: a.fileName }))
+        ));
+
+        const params = new URLSearchParams({
+            response_type: 'code',
+            client_id: CLIENT_ID,
+            redirect_uri: REDIRECT_URI,
+            state: state,
+            scope: 'api refresh_token',
+            prompt: 'consent'
+        });
+
+        const authUrl = `${OAUTH_AUTHORIZE_URL}?${params.toString()}`;
+        
+        const popup = window.open(authUrl, 'oauthPopup', 'width=600,height=700,scrollbars=yes');
+        
+        if (!popup || popup.closed) {
+            this.showToast('Error', 'Popup blocked. Please allow popups.', 'error');
+        }
+    }
+
+    handleOAuthMessage(event) {
+        const data = event.data;
+
+        if (data.type === 'OAUTH_TOKEN') {
+            this.accessToken = data.accessToken;
+            this.instanceUrl = data.instanceUrl;
+            this.tokenExpiry = Date.now() + ((data.expiresIn || 3600) * 1000);
+            
+            this.showToast('Authenticated', 'Uploading attachments...', 'success');
+            
+            // Resume upload with new token
+            this.processUploadQueue();
+
+        } else if (data.type === 'OAUTH_ERROR') {
+            this.isUploading = false;
+            this.showToast('OAuth Failed', `${data.error}: ${data.errorDescription}`, 'error');
+        }
+    }
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+
+    base64ToBlob(base64, mimeType) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return new Blob([bytes], { type: mimeType });
+    }
+
+    getMimeType(extension) {
+        const mimeTypes = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.txt': 'text/plain',
+            '.csv': 'text/csv',
+            '.xml': 'application/xml',
+            '.zip': 'application/zip',
+            '.msg': 'application/vnd.ms-outlook',
+            '.eml': 'message/rfc822'
+        };
+        return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
+    }
+
+    escapeHeader(value) {
+        return String(value || '').replace(/"/g, '\\"').replace(/[\r\n]/g, '');
+    }
+
+    generateState() {
+        return 'state_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+    }
+
+    isTokenExpired() {
+        return !this.tokenExpiry || Date.now() >= this.tokenExpiry;
+    }
+
+    showToast(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+    }
+
+    // ============================================================
+    // UI COMPUTED PROPERTIES
+    // ============================================================
+
+    get uploadProgressPercent() {
+        return `${this.uploadProgress}%`;
+    }
+
+    get hasAttachmentsToUpload() {
+        return this.emailAttachments.some(att => att.save && att.uploadStatus !== 'completed');
+    }
+
+    get uploadSummary() {
+        const total = this.emailAttachments.filter(a => a.save).length;
+        const completed = this.emailAttachments.filter(a => a.uploadStatus === 'completed').length;
+        return `${completed}/${total} uploaded`;
+    }
+}
 
 
-////
+===>
 
-this.emailAttachments
+// Option A: Auto-upload immediately
+// this.uploadEmailAttachments();
 
+// Option B: Show button and let user decide
+// (Add button to template as shown above)
+
+// Option C: Upload only small files automatically, prompt for large ones
+const smallFiles = parsedAttachments.filter(a => a.save);
+if (smallFiles.length === parsedAttachments.length) {
+    this.uploadEmailAttachments(); // All small, auto-upload
+}
