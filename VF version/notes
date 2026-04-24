@@ -366,3 +366,10 @@ const smallFiles = parsedAttachments.filter(a => a.save);
 if (smallFiles.length === parsedAttachments.length) {
     this.uploadEmailAttachments(); // All small, auto-upload
 }
+
+CLASS
+
+@AuraEnabled
+    public static TokenResponse exchangeCodeForToken(String authCode) {
+        return doTokenExchange(authCode);
+    }
