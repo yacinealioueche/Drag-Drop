@@ -373,3 +373,47 @@ CLASS
     public static TokenResponse exchangeCodeForToken(String authCode) {
         return doTokenExchange(authCode);
     }
+
+
+///////////////
+
+async linkFileToEmail({
+    accessToken,
+    instanceUrl,
+    contentDocumentId, // OR use contentVersionId
+    emailId
+}) {
+    const url = `${instanceUrl}/services/data/v60.0/sobjects/ContentDocumentLink`;
+
+    const body = {
+        ContentDocumentId: contentDocumentId,
+        LinkedEntityId: emailId,
+        ShareType: 'V'
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Linking error:', error);
+            throw new Error(JSON.stringify(error));
+        }
+
+        const result = await response.json();
+        console.log('File linked successfully:', result);
+
+        return result;
+
+    } catch (err) {
+        console.error('Exception while linking file:', err);
+        throw err;
+    }
+}
