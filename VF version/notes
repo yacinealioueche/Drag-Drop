@@ -377,22 +377,49 @@ CLASS
 
 ///////////////
 
-async linkFileToEmail({
+async linkContentVersionToEmail({
     accessToken,
     instanceUrl,
-    contentDocumentId, // OR use contentVersionId
+    contentVersionId,
     emailId
 }) {
-    const url = `${instanceUrl}/services/data/v60.0/sobjects/ContentDocumentLink`;
-
-    const body = {
-        ContentDocumentId: contentDocumentId,
-        LinkedEntityId: emailId,
-        ShareType: 'V'
-    };
-
     try {
-        const response = await fetch(url, {
+        // STEP 1 — Query ContentDocumentId
+        const query = `SELECT ContentDocumentId FROM ContentVersion WHERE Id='${contentVersionId}'`;
+        const queryUrl = `${instanceUrl}/services/data/v60.0/query?q=${encodeURIComponent(query)}`;
+
+        const queryResponse = await fetch(queryUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        if (!queryResponse.ok) {
+            const err = await queryResponse.json();
+            console.error('Query error:', err);
+            throw new Error(JSON.stringify(err));
+        }
+
+        const queryResult = await queryResponse.json();
+
+        if (!queryResult.records || queryResult.records.length === 0) {
+            throw new Error('No ContentDocumentId found');
+        }
+
+        const contentDocumentId = queryResult.records[0].ContentDocumentId;
+        console.log('ContentDocumentId:', contentDocumentId);
+
+        // STEP 2 — Create ContentDocumentLink
+        const linkUrl = `${instanceUrl}/services/data/v60.0/sobjects/ContentDocumentLink`;
+
+        const body = {
+            ContentDocumentId: contentDocumentId,
+            LinkedEntityId: emailId,
+            ShareType: 'V'
+        };
+
+        const linkResponse = await fetch(linkUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -401,19 +428,19 @@ async linkFileToEmail({
             body: JSON.stringify(body)
         });
 
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('Linking error:', error);
-            throw new Error(JSON.stringify(error));
+        if (!linkResponse.ok) {
+            const err = await linkResponse.json();
+            console.error('Link error:', err);
+            throw new Error(JSON.stringify(err));
         }
 
-        const result = await response.json();
+        const result = await linkResponse.json();
         console.log('File linked successfully:', result);
 
         return result;
 
-    } catch (err) {
-        console.error('Exception while linking file:', err);
-        throw err;
+    } catch (error) {
+        console.error('Error in linking flow:', error);
+        throw error;
     }
 }
