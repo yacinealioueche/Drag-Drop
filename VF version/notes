@@ -444,3 +444,154 @@ async linkContentVersionToEmail({
         throw error;
     }
 }
+
+
+
+Architecture: Authorization Code Flow with Popup
+plain
+Copy
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              USER BROWSER                               │
+│  ┌─────────────────┐    ┌──────────────────────┐    ┌─────────────────┐ │
+│  │  LWC            │───▶│  Popup VF Page       │───▶│  Salesforce     │
+│  │  (Drag & Drop)  │    │  (OAuth Handler)     │    │  OAuth Endpoint │
+│  │                 │    │                      │    │  (/authorize)   │
+│  │  1. User drops  │    │  2. Redirects to     │    │                 │
+│  │     email file  │    │     /authorize       │    │                 │
+│  │                 │    │                      │    │                 │
+│  │  5. Receives    │◄───│  4. Receives code    │◄───│  3. User logs   │
+│  │     token       │    │     via redirect_uri │    │     in, approves│
+│  │                 │    │                      │    │                 │
+│  └─────────────────┘    └──────────────────────┘    └─────────────────┘
+│         │                                              │
+│         │                                              │
+│         ▼                                              │
+│  ┌─────────────────────────────────────────────────────────┐            │
+│  │  LWC calls Salesforce REST API directly with token       │            │
+│  │  POST /services/data/v66.0/sobjects/ContentVersion      │            │
+│  │  Authorization: Bearer <token>                          │            │
+│  └─────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────┘
+Prerequisites
+1. External Client App Configuration
+Setup → External Client App Manager → [Your App] → Edit
+Table
+Setting	Value
+Enable OAuth Settings	✅
+Enable Authorization Code and Credentials Flow	✅
+Callback URL	https://yourCompany.my.salesforce.com/apex/OAuthCallbackHandler
+Require Proof Key for Code Exchange (PKCE)	❌ (simplify for POC)
+Require Secret for Web Server Flow	✅
+Scopes:
+plain
+Copy
+☑ Access and manage your data (api)
+☑ Perform requests on your behalf at any time (refresh_token, offline_access)
+Security:
+Table
+Setting	Value
+Permitted Users	Admin approved users are pre-authorized
+IP Relaxation	Relax IP restrictions
+Add your user to Manage Access.
+
+
+
+Setup Checklist
+Table
+Step	Action	Location
+1	Create External Client App	Setup → External Client App Manager
+2	Enable Authorization Code Flow	App → OAuth Settings
+3	Set Callback URL to VF page	App → OAuth Settings
+4	Get Client ID and Client Secret	App → View
+5	Create Visualforce Page	Setup → Visualforce Pages
+6	Create Apex Controller	Developer Console
+7	Deploy LWC	VS Code / Deploy
+8	Add user to Manage Access	App → Security
+9	Pre-authorize user	Profile or Permission Set
+10	Test drag, drop, OAuth popup, upload	Lightning Page
+
+
+
+How the Flow Actually Works
+plain
+Copy
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STEP 1: User clicks SAVE                                               │
+│  └── handleSave() called                                               │
+│       └── Validation passes → isLoading = true                         │
+│            └── updateRecord() → Opportunity updated                     │
+│                 └── createCase() → Case created                         │
+│                      └── createEmailMessage() → EmailMessage created   │
+│                           └── Check: need OAuth?                        │
+│                                ├── YES (no token/expired)              │
+│                                │    └── openOAuthPopup()               │
+│                                │         └── Opens /apex/OAuthCallbackHandler│
+│                                │              └── VF redirects to /authorize │
+│                                │                   └── User logs in      │
+│                                │                        └── Salesforce redirects back to VF with ?code=xxx │
+│                                │                             └── VF calls Apex exchangeCode() │
+│                                │                                  └── Apex returns token │
+│                                │                                       └── VF posts OAUTH_TOKEN to parent │
+│                                │                                            └── handleOAuthMessage receives it │
+│                                │                                                 └── Stores token │
+│                                │                                                      └── Calls uploadAttachmentsViaRestApi() │
+│                                │                                                           └── Loops attachments, uploads each │
+│                                │                                                                └── Shows success toast │
+│                                │                                                                     └── Closes modal │
+│                                └── NO (have valid token)               │
+│                                     └── Directly calls uploadAttachmentsViaRestApi() │
+│                                          └── Same upload flow as above  │
+└─────────────────────────────────────────────────────────────────────────┘
+The Key Insight
+handleOAuthMessage is not called immediately — it's an event listener. It waits for the popup to complete OAuth and post the message back. When that happens (could be seconds later), it receives the token and then calls the upload method.
+Code Flow Visualization
+JavaScript
+Copy
+// 1. SAVE clicked
+async handleSave() {
+    // ... validation, update record, create case, create email ...
+    
+    // 2. Check token
+    if (!this.accessToken || this.isTokenExpired()) {
+        this.openOAuthPopup();  // ← Opens popup, returns immediately
+        // Code continues but doesn't call upload here
+        // Upload happens LATER via handleOAuthMessage
+        return; // Important: stops here, waits for popup
+    }
+    
+    // 3. If we already have token, upload directly
+    await this.uploadAttachmentsViaRestApi(...);
+}
+
+// 4. Popup completes OAuth, posts message
+// 5. This fires asynchronously:
+handleOAuthMessage = (event) => {
+    if (event.data.type === 'OAUTH_TOKEN') {
+        this.accessToken = event.data.accessToken;
+        // 6. NOW upload starts:
+        this.uploadAttachmentsViaRestApi(this.emailAttachments, this.pendingEmailId);
+    }
+};
+Why It Works
+Table
+Question	Answer
+How does upload start after popup?	handleOAuthMessage is called when popup posts message
+Is the code blocked waiting?	No — it's event-driven, not blocking
+What if popup is closed without auth?	OAUTH_ERROR message, shows error toast
+Can user interact while popup open?	Yes, but modal stays open until upload completes
+Your Working Code Summary
+Table
+File	Purpose
+LWC JS	Opens popup, listens for token, uploads via REST
+VF Page	Redirects to OAuth, exchanges code, posts token
+Apex Controller	Exchanges auth code for access token
+External Client App	Defines OAuth client, callback URL
+For Production (Future Improvements)
+Table
+Improvement	How
+Refresh token	Store in localStorage, reuse until expired
+Parallel uploads	Use Promise.all() instead of sequential loop
+Progress bar	Track uploadedCount / total in UI
+Retry logic	Retry failed uploads individually
+Error recovery	Allow retry without full re-auth
+
